@@ -122,7 +122,7 @@ UNION ALL
 SELECT * FROM iceberg.app_schema.users WHERE archived = false;
 ```
 
-This tight coupling makes evolution painful. Every storage change ripples through any application code that directly accesses the database. As good architects, we can try to isolate those changes to just the data access layers of each application. But if there is a large number of applications, virtualizing data access inside the application
+This tight coupling makes evolution painful. Every storage change ripples through any application code that directly accesses the database. As good architects, we can try to isolate those changes to just the data access layers of each application. But if there is a large number of applications, updating each one for data source changes is a chore.
 
 ### The Virtual View Approach
 
