@@ -5,7 +5,7 @@ Classical SQL views are boring schema decoration for hiding joins, adding comput
 
 Virtual view hierarchies can be implemented using Trino, Starburst Enterprise or Galaxy, Amazon Athena, Presto, and most databases that support SQL views (including Postgresql and MySQL). Trino is used for all examples here.
 
-This manifesto isn't just theory, it provides practical strategies and examples to follow when introducing virtual views into your architecture, and links to additional tools for discovery and management of view hierarchies with Trino.  
+This manifesto isn't just theory, it provides practical strategies and examples to follow when introducing virtual views into your architecture, and links to free tools to discover and manage view hierarchies with Trino.  
 
 ### What's Novel Here
 
