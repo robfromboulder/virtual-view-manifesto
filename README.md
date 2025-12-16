@@ -7,6 +7,9 @@ Virtual view hierarchies can be implemented using Trino, Starburst Enterprise or
 
 This manifesto isn't just theory, it provides practical strategies and examples to follow when introducing virtual views into your architecture, and links to free tools to discover and manage view hierarchies with Trino.  
 
+> [!CAUTION]
+> This is a work in progress and is neither complete nor peer reviewed.
+
 ### What's Novel Here
 
 This manifesto synthesizes several existing ideas:
@@ -150,9 +153,7 @@ flowchart TD
 
 ## The Eight Principles of Virtual View Hierarchies
 
-These eight principles form the foundation of effective virtual view architecture. Each addresses a specific concern, from organizational structure to security to maintainability.
-
-1. [Virtual Views Belong to Applications, Not Schemas](#principle-1-virtual-views-belong-to-applications-not-schemas)
+1. [Virtual Views Belong to Applications, Not Physical Schemas](#principle-1-virtual-views-belong-to-applications-not-physical-schemas)
 2. [Applications Query Virtual Views (Usually)](#principle-2-applications-query-virtual-views-usually)
 3. [Every Virtual View Has Multiple Versions](#principle-3-every-virtual-view-has-multiple-versions)
 4. [Assign One Owner Per Layer](#principle-4-assign-one-owner-per-layer)
@@ -163,11 +164,11 @@ These eight principles form the foundation of effective virtual view architectur
 
 ---
 
-### Principle 1: Virtual Views Belong to Applications, Not Schemas
+### Principle 1: Virtual Views Belong to Applications, Not Physical Schemas
 
 **Rule**: Organize views by application or feature, not by physical data source.
 
-**Why**: Physical schemas reflect storage concerns. Applications have different concerns. When views mirror physical schema organization, they provide no abstraction value.
+**Why**: Physical schemas reflect storage concerns. Applications have different concerns. When views mirror physical schema organization, they are rigid and provide no abstraction value.
 
 **Simple example**:
 ```sql
@@ -201,46 +202,41 @@ CREATE VIEW ecommerce.products.pricing AS ...
 
 **Implementation**:
 - Create application-specific catalogs (`myapp`, `feature_analytics`, `ecommerce`)
-- Never name views after physical schemas (no `postgres_mirror.logs`)
-- Use domain language in view names (`customer_orders`, not `table_23_denorm`)
-- Consider one catalog per major application or service boundary
-
-```mermaid
-flowchart TD
-    subgraph Bad[Physical-Centric Organization ❌]
-        PG1[postgresql.app.*]
-        PG2[postgresql.reporting.*]
-        MY1[mysql.legacy.*]
-    end
-    
-    subgraph Good[Application-Centric Organization ✅]
-        APP1[myapp.orders.*]
-        APP2[myapp.customers.*]
-        APP3[analytics.sales.*]
-    end
-    
-    style Bad fill:#ffe1e1
-    style Good fill:#e1ffe1
-```
+- Create feature-specific schemas (`billing`, `logging`, `preferences`)
+- Use domain-specific language in all names (`customer_orders`, not `table_23_denorm`)
+- Avoid naming virtual schemas to directly mirror physical schemas (like `postgres_virtual.xxx`)
 
 ---
 
 ### Principle 2: Applications Query Virtual Views (Usually)
 
-**Rule**: Application code should primarily reference virtual views. Direct physical table access is acceptable for legacy integrations and performance-critical paths.
+**Rule**: Application code should reference virtual views whenever possible. Direct physical table access is acceptable for legacy code and performance-critical paths.
 
-**Why**: Enables storage changes without code changes, but recognizes pragmatic constraints of real systems.
+**Why**: Enables major storage changes without major application changes, but recognizes pragmatic constraints of real systems. Use virtual views for new code and high-value refactoring, and direct access when proven necessary. Both patterns can coexist peacefully.
+
+```mermaid
+flowchart TD
+    App[Application] --> Catalog["Application Catalog<br/>(myapp.data.*)"]
+    Catalog --> Views["Application View<br/>Hierarchy"]
+    Views --> DB[("Physical Tables")]
+    App --> Legacy["Legacy Code<br/>(unmodified)"]
+    Legacy --> DB
+    App -.-> Admin["Admin Tools<br/>(optional)"]
+    Admin --> DB
+    App -.-> Batch["Batch Jobs<br/>(optional)"]
+    Batch --> DB
+```
 
 **When direct access is acceptable**:
-- Legacy applications too costly to refactor immediately
-- Ultra-low-latency requirements where view overhead matters
-- Administrative or operational tooling
-- Batch jobs with specific performance needs
+- Legacy applications too costly to refactor
+- Administrative, operational or reporting jobs
+- Large queries or batch jobs with specific performance hints
+- Ultra-low-latency requirements where view overhead matters (rare)
 
-**When to strongly prefer virtual views**:
-- Any new feature development
-- APIs and user-facing queries
-- Cross-team data access
+**When virtual views are preferred**:
+- New development of major features
+- High-level APIs and user-facing queries
+- Features likely to need storage virtualization in the future
 - Anywhere flexibility matters more than microseconds
 
 **Simple example**:
@@ -248,7 +244,7 @@ flowchart TD
 -- Application code (preferred)
 SELECT * FROM myapp.users WHERE active = true;
 
--- vs. direct access (sometimes necessary)
+-- vs. direct access (sometimes necessary, but not by default)
 SELECT * FROM postgresql.app_schema.users WHERE active = true;
 ```
 
@@ -258,8 +254,7 @@ SELECT * FROM postgresql.app_schema.users WHERE active = true;
 @GetMapping("/orders")
 public List<Order> getOrders() {
     return jdbc.query(
-        "SELECT * FROM ecommerce.orders.current WHERE user_id = ?",
-        userId
+        "SELECT * FROM ecommerce.orders.current WHERE user_id = ?", userId
     );
 }
 
@@ -270,45 +265,25 @@ public void generateReports() {
     // 10M+ rows, needs partition pruning optimization
     return jdbc.query(
         "SELECT * FROM iceberg.warehouse.orders_partitioned " +
-        "WHERE order_date = ? AND partition_key = ?",
-        date, partition
+        "WHERE order_date = ? AND partition_key = ?", date, partition
     );
 }
 ```
 
-**Implementation guidance**:
-- New code: virtual views by default
+**Implementation**:
+- New code: use virtual views by default
 - Legacy code: migrate opportunistically during refactors
-- Document which paths use direct access and why
+- Document what paths use direct access and why
 - Performance test to verify view overhead is acceptable (usually negligible)
-
-```mermaid
-flowchart LR
-    App[Application] --> API[API Layer<br/>Virtual Views]
-    App --> Batch[Batch Jobs<br/>May Use Direct]
-    App --> Admin[Admin Tools<br/>May Use Direct]
-    
-    API --> Views[Virtual View<br/>Hierarchy]
-    Batch -.-> DB[(Physical<br/>Storage)]
-    Admin -.-> DB
-    Views --> DB
-    
-    style API fill:#e1ffe1
-    style Batch fill:#fff4e1
-    style Admin fill:#fff4e1
-```
-
-**The pragmatic approach**: Virtual views for most code, direct access when proven necessary. Both patterns can coexist peacefully.
-
 ---
 
 ### Principle 3: Every Virtual View Has Multiple Versions
 
 **Rule**: Design each view expecting to be replaced with static (testing), live (production), and hybrid (migration) versions.
 
-**Why**: Enables prototyping, testing, and seamless migrations. If a view only ever has one definition, you're not using this pattern to its potential.
+**Why**: Enables prototyping, testing, and seamless migrations, with current and future data sources. If a view only ever has one definition, you're not using this pattern to its full potential.
 
-**Simple example—version progression**:
+**Simple example (prototyping)**:
 ```sql
 -- Version 1: Prototype with static data
 CREATE VIEW myapp.users AS 
@@ -324,17 +299,9 @@ SELECT
   CAST(name AS VARCHAR) as name,
   CAST(email AS VARCHAR) as email
 FROM postgresql.dev.users;
-
--- Version 3: Production database
-CREATE OR REPLACE VIEW myapp.users AS
-SELECT 
-  CAST(id AS BIGINT) as id,
-  CAST(name AS VARCHAR) as name,
-  CAST(email AS VARCHAR) as email
-FROM postgresql.prod.users;
 ```
 
-**Realistic example—hybrid during migration**:
+**Realistic example (optional hybrid storage)**:
 ```sql
 -- Initially: All data in PostgreSQL
 CREATE VIEW myapp.events AS
@@ -345,46 +312,23 @@ SELECT
   CAST(user_id AS BIGINT) as user_id
 FROM postgresql.app.events;
 
--- During migration: Hybrid PostgreSQL + Iceberg
+-- When enabled by feature flag: hybrid PostgreSQL + Iceberg
+-- Data older than 7 days is replicated separately
 CREATE OR REPLACE VIEW myapp.events AS
 SELECT event_id, event_type, event_time, user_id
 FROM postgresql.app.events 
-WHERE event_time > CURRENT_DATE - INTERVAL '30' DAYS
-  AND replicated = false
+WHERE event_time > CURRENT_DATE - INTERVAL '7' DAYS
 UNION ALL
 SELECT event_id, event_type, event_time, user_id
 FROM iceberg.archive.events
-WHERE event_time <= CURRENT_DATE - INTERVAL '30' DAYS;
-
--- After migration: Iceberg only
-CREATE OR REPLACE VIEW myapp.events AS
-SELECT 
-  CAST(event_id AS BIGINT) as event_id,
-  CAST(event_type AS VARCHAR) as event_type,
-  CAST(event_time AS TIMESTAMP(3)) as event_time,
-  CAST(user_id AS BIGINT) as user_id
-FROM iceberg.warehouse.events;
+WHERE event_time <= CURRENT_DATE - INTERVAL '7' DAYS;
 ```
 
 **Implementation**:
 - Start every project with static data views
 - Keep test views in version control alongside production definitions
 - Document expected version progression path
-- Use environment-specific catalogs if needed (myapp_dev, myapp_prod)
-
-```mermaid
-gantt
-    title View Definition Evolution
-    dateFormat YYYY-MM-DD
-    section View: myapp.events
-    Static VALUES     :a1, 2024-01-01, 14d
-    PostgreSQL Dev    :a2, 2024-01-15, 35d
-    PostgreSQL Prod   :a3, 2024-02-20, 90d
-    PG + Iceberg      :a4, 2024-05-20, 60d
-    Iceberg Only      :a5, 2024-07-20, 2024-12-31
-    section Application Code
-    Unchanged         :2024-01-01, 2024-12-31
-```
+- Use environment-specific catalogs if needed (`myapp_dev`, `myapp_prod`)
 
 ---
 
@@ -392,56 +336,55 @@ gantt
 
 **Rule**: Assign each layer in a view hierarchy to a single actor or agent. Coordinate changes through that owner.
 
-**Why**: Prevents race conditions, conflicting updates, and unclear responsibility. Views have no locking mechanism during definition replacement.
+**Why**: Prevents race conditions, conflicting updates, and unclear responsibility. Views have no locking mechanism during definition replacement, and queries won't be canceled or restarted if definitions change.
 
 **Simple example**:
 ```sql
--- Layer 1: Owned by dev team, updated during releases
-CREATE VIEW myapp.users AS
-SELECT id, name, email, account_type 
-FROM myapp.internal.users_filtered;
-
--- Layer 2: Owned by privacy system, updated when policies change
-CREATE VIEW myapp.internal.users_filtered AS
-SELECT id, name, email, account_type 
-FROM myapp.internal.users_merged
-WHERE tenant_id = current_tenant() OR is_admin();
-
--- Layer 3: Owned by data engineering, updated during migrations
+-- Owned by data engineering, updated during migrations
 CREATE VIEW myapp.internal.users_merged AS
 SELECT id, name, email, account_type, tenant_id
 FROM postgresql.users 
 UNION ALL 
 SELECT id, name, email, account_type, tenant_id
 FROM iceberg.users_archive;
+
+-- Owned by privacy system, updated when policies change
+CREATE VIEW myapp.internal.users_filtered AS
+SELECT id, name, email, account_type 
+FROM myapp.internal.users_merged
+WHERE tenant_id = current_tenant() OR is_admin();
+
+-- Owned by dev team, updated during releases
+CREATE VIEW myapp.users AS
+SELECT id, name, email, account_type 
+FROM myapp.internal.users_filtered;
 ```
 
-**Realistic example with ownership matrix**:
+**Documented example with ownership matrix**:
 
-| Layer | View Name | Owner | Update Trigger | Frequency |
-|-------|-----------|-------|----------------|-----------|
-| Entry | `ecommerce.orders.current` | Product team | Feature release | Weekly |
-| Privacy | `ecommerce.internal.orders_filtered` | Compliance automation | Policy change | Monthly |
-| Version | `ecommerce.internal.orders_normalized` | Data engineering | Schema migration | Quarterly |
-| Merge | `ecommerce.internal.orders_merged` | Replication service | Storage config change | During migrations |
+| Layer   | View Name                       | Owner            | Update Trigger    |
+|---------|---------------------------------|------------------|-------------------|
+| Entry   | `myapp.users`                   | Dev team         | Feature release   |
+| Privacy | `myapp.internal.users_filtered` | Privacy system   | Policy change     |
+| Merge   | `myapp.internal.users_merged`   | Data engineering | Storage migration |
 
 **Implementation**:
 - Document layer ownership in team wiki or repository README
 - Use synchronized/coordinated access for programmatic updates
 - Avoid concurrent modifications to same view definition
-- Consider automated deployment pipelines per layer owner
 
-**Caution**: Trino has no `ALTER VIEW` locking mechanism. Queries use the view definition active when query planning occurs. Replacing a view doesn't terminate or restart running queries using the old definition.
+> [!CAUTION]
+> Trino has no locking mechanism for `ALTER VIEW` or `CREATE OR REPLACE VIEW` statements. Queries use the view definition active when query planning occurs. Replacing a view doesn't terminate or restart running queries using the old definition.
 
 ---
 
 ### Principle 5: Never Change Column Types
 
-**Rule**: When replacing a view definition, strongly avoid changing column names and types. This is the easiest way to break a dependent view hierarchy.
+**Rule**: When replacing a view definition, avoid changing column types. Explicitly setting column types using `CAST` is a good habit.
 
-**Why**: Trino does NOT validate types when replacing views. Breaking changes only surface at query time, potentially in production.
+**Why**: Accidentally changing column types is the easiest way to break a view hierarchy. Trino does NOT validate types when replacing views. Breaking changes only surface at query time, potentially in production.
 
-**Simple example**:
+**Working example with `CAST`**:
 ```sql
 -- Original view
 CREATE VIEW myapp.events AS
@@ -456,16 +399,9 @@ SELECT
   CAST(event_id AS BIGINT) as event_id,
   CAST(event_name AS VARCHAR) as event_name
 FROM different_source;
-
--- Bad replacement: type changed, breaks dependent views!
-CREATE OR REPLACE VIEW myapp.events AS
-SELECT 
-  CAST(event_id AS VARCHAR) as event_id,  -- Changed BIGINT to VARCHAR
-  CAST(event_name AS VARCHAR) as event_name
-FROM different_source;
 ```
 
-**Realistic example showing cascading failure**:
+**Breaking example with cascading failure**:
 ```sql
 -- Base view (originally BIGINT)
 CREATE VIEW myapp.internal.events_raw AS
@@ -490,10 +426,10 @@ SELECT CAST(id AS VARCHAR) as event_id, ...;  -- Now VARCHAR!
 ```
 
 **Implementation**:
-- Use explicit CAST in base layers to lock types
+- Use explicit `CAST` in base layers to lock types
 - Consider using Iceberg types even in base views if Iceberg is a future target
 - Document expected types in view comments or external documentation
-- If you MUST change types: create new view, deprecate old, migrate consumers
+- If you MUST change types, use a phased approach
 
 **When you must change types**:
 1. Create new view with new name (`myapp.events_v2`)
@@ -501,20 +437,6 @@ SELECT CAST(id AS VARCHAR) as event_id, ...;  -- Now VARCHAR!
 3. Migrate consumers gradually
 4. Monitor old view usage until zero
 5. Remove old view
-
-```mermaid
-flowchart TD
-    Base[myapp.base<br/>BIGINT event_id] --> Mid[myapp.middle]
-    Mid --> Top[myapp.top]
-    
-    Base2[myapp.base<br/>VARCHAR event_id ❌] -.breaks.-> Mid
-    Mid -.error at query time.-> Top
-    
-    style Base fill:#e1ffe1
-    style Mid fill:#e1ffe1
-    style Top fill:#e1ffe1
-    style Base2 fill:#ffe1e1
-```
 
 ---
 
@@ -551,52 +473,41 @@ FROM finance.orders  -- Finance team has access, sales team does not
 GROUP BY date_trunc('month', order_date);
 
 -- With SECURITY INVOKER:
--- - Finance team: Can query the view (they have access to underlying table)
--- - Sales team: Cannot query the view (they lack access to finance.orders)
+-- * Finance team: Can query the view (they have access to underlying table)
+-- * Sales team: Cannot query the view (they lack access to finance.orders)
 
 -- With SECURITY DEFINER:
--- - Both teams can query the view (using view creator's permissions)
--- - Violates principle of least privilege
+-- * Both teams can query the view (using view creator's permissions)
+-- * Violates principle of least privilege
 ```
 
 **Implementation**:
 - Default to `SECURITY INVOKER` for all virtual views
 - Document permission requirements for each view
-- Consider using `SECURITY DEFINER` only for controlled privilege escalation with strong justification
 - Test views with user accounts that have minimal permissions
+- Consider using `SECURITY DEFINER` only for controlled privilege escalation with strong justification
 
-**Note**: Trino's default behavior may vary by connector. Always specify explicitly.
+>[!TIP]
+> Trino's default behavior may vary by connector. Always specify explicitly.
 
 ---
 
 ### Principle 7: Store Views in a Canonical Location
 
-**Rule**: Choose one authoritative connector for virtual view storage and commit to it.
+**Rule**: Choose one authoritative connector for virtual view storage and commit to it, or use [ViewZoo](https://github.com/robfromboulder/viewzoo) for current and future storage.
 
-**Why**: View definitions must live somewhere, even if they span multiple data sources. Inconsistent storage leads to lost definitions and confusion.
-
-**Options**:
-1. **Use Iceberg** (or your target connector) if you know that's your long-term destination
-2. **Use ViewZoo** for lightweight, filesystem-based view storage when you need maximum flexibility
-3. **Use any stable connector** that will outlive individual storage experiments
+**Why**: View definitions must be persisted somewhere, even when using static data (no real data sources) or spanning multiple data sources.
 
 **Simple example**:
 ```sql
--- Option A: Store in Iceberg (already using it for data)
-CREATE VIEW iceberg.myapp.logs AS 
-SELECT * FROM postgresql.logging.events;
+-- Option A: Store in Iceberg (if always available)
+CREATE VIEW iceberg.myapp.logs AS SELECT ... 
 
 -- Option B: Store in ViewZoo (lightweight, filesystem-based)
-CREATE VIEW viewzoo.myapp.logs AS
-SELECT * FROM postgresql.logging.events;
-
--- Option C: Store in PostgreSQL (it's always available)
-CREATE VIEW postgresql.myapp_views.logs AS
-SELECT * FROM postgresql.logging.events;
+CREATE VIEW viewzoo.myapp.logs AS SELECT ...
 ```
 
-**Realistic decision tree**:
-
+**Recommended decision tree**:
 ```
 Do you already use Iceberg?
 ├─ Yes → Store views in Iceberg catalog
@@ -615,40 +526,9 @@ Do you already use Iceberg?
                   (PostgreSQL, MySQL, whatever won't disappear)
 ```
 
-**ViewZoo's unique advantage**: Filesystem-based storage enables version control workflows:
-
-```bash
-# View definitions stored in git repository
-/var/trino/views/myapp/
-  ├── data/
-  │   ├── users.json
-  │   ├── orders.json
-  │   └── events.json
-  └── internal/
-      ├── users_filtered.json
-      └── orders_merged.json
-
-# Different git branches = different view configurations
-git checkout feature/new-storage-backend
-# ViewZoo reads updated view definitions immediately
-
-# Pull requests for view changes
-# Rollback via git history
-# Per-developer customizations with local branches
-```
-
-This enables workflows impossible with database-stored views:
-- **Version control**: Full history of view changes
-- **Code review**: Pull requests for view modifications
-- **Testing**: Feature branches with alternate view definitions
-- **Rollback**: `git revert` to restore previous definitions
-- **Customization**: Developers can have local view configurations
-- **CI/CD**: Automated testing and deployment of view changes
-
 **Implementation**:
 - Choose storage location during project setup
-- Document the decision in README
-- All virtual views for an application should use same storage location
+- Document the decision in project wiki or README
 - If migrating storage later, use `SHOW CREATE VIEW` to export/import definitions
 
 **Link to ViewZoo documentation**: [github.com/robfromboulder/viewzoo](https://github.com/robfromboulder/viewzoo)
@@ -657,32 +537,32 @@ This enables workflows impossible with database-stored views:
 
 ### Principle 8: Map Complexity, Don't Memorize It
 
-**Rule**: Use tools to discover and visualize view dependencies rather than expecting humans to track relationships mentally.
+**Rule**: Use tools like [ViewMapper](https://github.com/robfromboulder/viewmapper) to discover and visualize view dependencies rather than expecting humans to track relationships mentally.
 
-**Why**: View hierarchies become complex quickly. SQL definitions don't show the dependency graph. `SHOW CREATE VIEW` is for debugging, not understanding architecture.
+**Why**: View hierarchies become complex quickly. SQL definitions don't show the dependency graph. `SHOW CREATE VIEW` is for debugging, not understanding architecture. Traditional ERD tools aren't a big help.
 
-**Simple example—what you can't see**:
+**Simple example**:
 ```sql
 -- These four views form a hierarchy, but how?
-CREATE VIEW myapp.users AS 
-  SELECT * FROM myapp.internal.users_filtered;
-CREATE VIEW myapp.internal.users_filtered AS 
-  SELECT * FROM myapp.internal.users_enriched;
-CREATE VIEW myapp.internal.users_enriched AS 
-  SELECT * FROM myapp.internal.users_base;
 CREATE VIEW myapp.internal.users_base AS 
   SELECT * FROM postgresql.users;
+CREATE VIEW myapp.internal.users_enriched AS 
+  SELECT * FROM myapp.internal.users_base;
+CREATE VIEW myapp.internal.users_filtered AS 
+  SELECT * FROM myapp.internal.users_enriched;
+CREATE VIEW myapp.users AS 
+  SELECT * FROM myapp.internal.users_filtered;
 
 -- SHOW CREATE VIEW only shows one level at a time
 -- Developers must manually trace dependencies
 ```
 
-**Realistic example—complex hierarchy**:
+**Realistic example (but still small)**:
 ```sql
 -- 10+ views spanning multiple layers
 -- Some views join multiple sources
 -- Some views are used by multiple parents
--- Manual tracking becomes impossible
+-- Manual tracking becomes difficult, even at this scale
 
 myapp.orders (entry)
   ├─ depends on myapp.internal.orders_enriched
@@ -697,7 +577,7 @@ myapp.orders (entry)
 ```
 
 **Implementation**:
-- Use **ViewMapper** to generate dependency diagrams automatically
+- Use tools to generate dependency diagrams
 - Keep generated diagrams in documentation (Git repository)
 - Regenerate after significant changes
 - Include diagrams in code review for view changes
@@ -714,10 +594,6 @@ flowchart TD
     myapp.internal.customers --> postgresql.customers
     myapp.internal.products --> postgresql.products
     myapp.internal.products --> redis.product_cache
-    
-    style myapp.orders fill:#e1f5ff
-    style myapp.internal.orders_enriched fill:#ffe1e1
-    style myapp.internal.orders_merged fill:#e1ffe1
 ```
 
 **Link to ViewMapper**: [github.com/robfromboulder/viewmapper](https://github.com/robfromboulder/viewmapper)
@@ -1101,7 +977,7 @@ FROM postgresql.products;
 CREATE OR REPLACE VIEW myapp.products AS
 SELECT * FROM (VALUES
   (1, 'Normal Product', 10.00, 100),
-  (2, 'Zero Price', 0.00, 50),         -- Edge case
+  (2, 'Zero Price', 0.00, 50),          -- Edge case
   (3, 'Negative Inventory', 5.00, -10), -- Edge case
   (4, NULL, 15.00, 20),                 -- NULL name
   (5, 'Very Long Name That Might Break UI Components Because It Is Extremely Long', 15.00, 5)
@@ -2121,8 +1997,6 @@ SELECT key, value FROM postgresql.config;
 
 **Layer**: A level in a view hierarchy with single responsibility (e.g., entry point, filtering, merging, normalization). Layers are owned by single actors and replaced independently.
 
-**Swappable Layer**: A view definition that can be replaced with alternate implementations without breaking dependent views, as long as the interface (column names and types) remains consistent.
-
 **Application Catalog**: A Trino catalog containing views organized around application or feature needs rather than physical storage structure. Named by domain (e.g., `myapp`, `analytics`, `ecommerce`).
 
 **Physical Schema**: The actual table structure in databases like PostgreSQL, MySQL, Iceberg, etc. Virtual views abstract over these to hide physical details from applications.
@@ -2136,14 +2010,6 @@ SELECT key, value FROM postgresql.config;
 **Static View**: A view returning hardcoded data using `VALUES` clause, useful for prototyping before infrastructure exists or for testing edge cases.
 
 **Hybrid View**: A view merging multiple physical sources, typically combining old and new storage with `UNION ALL` during migrations.
-
-**Federation**: Querying multiple data sources in a single SQL query. Trino's core capability that makes virtual views particularly powerful.
-
-**Entry Layer**: Top-level view in a hierarchy, the interface applications query directly. Usually adds computed columns and version mapping. Owned by application team.
-
-**Filter Layer**: Middle layer implementing privacy, security, tenant isolation, or compliance rules. Single point of control for data governance. Owned by compliance team.
-
-**Merge Layer**: Bottom layer combining multiple physical sources. Handles UNION/JOIN logic and replication state management. Owned by data engineering team.
 
 **DAG (Directed Acyclic Graph)**: Graph structure where edges have direction and no cycles exist. View hierarchies must be DAGs to prevent infinite loops.
 
@@ -2364,5 +2230,5 @@ To the extent possible under law, the author has waived all copyright and relate
 
 ---
 
-**Version**: 0.2
+**Version**: 0.3
 **Last Updated**: 2025-12-15
