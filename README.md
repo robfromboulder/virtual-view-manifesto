@@ -48,7 +48,7 @@ This manifesto admittedly relies on multi-database platforms like Trino as the "
 
 SQL views are saved SELECT statements that can be queried like regular tables. Traditional use cases for views are hiding complexity (so that joins and other complex expressions don't have to be repeated over and over in queries) and re-shaping the rows and columns returned by queries.
 
-With these classical use cases, views are just icing on your physical schema to make queries a little easier. Applications often access the physical schema directly, except when views are needed for security or convenience.
+With these classical use cases, views are just icing on your physical schema to make queries a little easier. Applications mostly use physical tables, except when views are needed for security or convenience.
 
 ```mermaid
 flowchart TD
@@ -101,7 +101,9 @@ Even though views like the examples above can be very helpful for reusing SQL st
 
 ### The Cost of Tight Coupling to Physical Schemas
 
-Many database applications (especially those with light use of views) have a fundamental and widely accepted constraint. They are tightly coupled to their physical databases, tables and views. Because of this tight coupling:
+Many database applications (especially those with light use of views) have a fundamental and widely accepted constraint. They are tightly coupled to their physical databases, tables and views.
+
+Because of this tight coupling by default:
 - Applications must know which connector(s) to query
 - Views live in the same database/connector as their tables
 - Migrating storage or schema always means changing application code
@@ -120,7 +122,7 @@ UNION ALL
 SELECT * FROM iceberg.app_schema.users WHERE active = false;
 ```
 
-As good architects, we hope to isolate these queries in the data access layers of our applications, but every storage change still has to ripple through any code that directly references the database. This makes evolution and migrations painful. 
+As good architects, we can hope to isolate these queries in the data access layers of our applications, but every storage change still has to ripple through any code that directly references the database. This makes evolution and migrations painful and time consuming. 
 
 ### The Virtual View Approach
 
@@ -129,7 +131,7 @@ Unlike physical tables and traditional views, virtual views are organized by app
 - **Detached from physical schemas** - Views are used for most application queries, not physical tables  
 - **Layered into hierarchies** - Views depend on other views, creating swappable layers
 - **Independently replaceable** - Each layer can be swapped without affecting others
-- **Multi-connector capable** - Each layer can use one or more data sources (including predefined demo and test datasets)
+- **Multi-connector capable** - Each layer can use one or more (real or fake) data sources
 
 ```mermaid
 flowchart TD
@@ -141,8 +143,6 @@ flowchart TD
     ViewHierarchy -.-> Ice[(Iceberg)]
     ViewHierarchy -.-> Test[("Integration<br/>Test Data")]
 ```
-
-The rest of this document expands on this definition and provides other advice about using this pattern in your applications.
 
 ---
 
