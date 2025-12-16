@@ -2,8 +2,8 @@
 
 **Project**: The Virtual View Manifesto
 **Author**: Rob Dickinson (robfromboulder)
-**Current Version**: 0.1
-**Last Updated**: 2025-12-10
+**Current Version**: 0.2
+**Last Updated**: 2025-12-15
 **Document Length**: ~2379 lines / ~70,000 words
 
 ---
@@ -165,7 +165,7 @@ This ensures future Claude sessions have the most current context.
 ### Mermaid Diagrams
 - Use flowcharts for architecture and dependencies
 - Use Gantt charts for timeline progressions
-- Keep styling consistent (use same color scheme)
+- **Use black-and-white only** - No custom colors or fills for readability in both light and dark modes
 - Test rendering in GitHub preview
 
 ---
@@ -238,11 +238,18 @@ For each major principle or use case:
 - Add cross-references from relevant sections
 - Generate Mermaid diagram if applicable
 
+**Improving information flow**:
+- Place context/setup paragraphs BEFORE examples (not after)
+- Position diagrams early to visualize concepts immediately
+- Remove redundant subsections when content is already covered elsewhere
+- Ensure diagram elements match surrounding text (e.g., if diagram shows demo/test data, mention it)
+- Make example headers consistent ("Example of..." pattern)
+
 ---
 
 ## 📝 Current Status
 
-**Version**: 0.1 (Draft)
+**Version**: 0.2 (Draft)
 **Status**: Awaiting peer review and community feedback
 **Next Milestone**: 1.0 release after incorporating feedback
 **Entire document is open for review**
@@ -272,12 +279,22 @@ When you ask Claude to work on this project, you can use these shortcuts:
 
 ---
 
-**Last Updated**: 2025-12-10
+**Last Updated**: 2025-12-15
 **Maintained By**: Claude Code (for Rob's review and approval)
 
 ---
 
 ## 🔄 Change Log
+
+### 2025-12-15
+- Improved information flow in Introduction section
+- Added "icing on physical schema" metaphor earlier for better contrast
+- Removed redundant "Why Trino?" subsection
+- Repositioned classical views diagram for immediate visualization
+- Added demo/test data sources to virtual view diagram
+- Standardized example headers with "Example of..." pattern
+- Updated Mermaid guidelines to require black-and-white for light/dark mode readability
+- Added "Improving information flow" editing pattern to Common Editing Patterns
 
 ### 2025-12-10
 - Initial CLAUDE.md created from AUTHORS_NOTES.md

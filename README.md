@@ -16,7 +16,7 @@ This manifesto synthesizes several existing ideas:
 4. **Multi-database abstraction**: Use federation capabilities in Trino/Starburst/Athena/Presto
 5. **Iceberg migration focus**: Specific, pragmatic, and common use case for adoption
 
-The novelty is the **combination and systematic approach** and documentation as a **repeatable pattern**, not individual techniques. Like the AJAX pattern, which used capabilities already available in modern browsers, the capabilities for virtual views are already present in most modern database platforms, without requiring any configuration changes or custom extensions.
+The novelty is the **combination and systematic approach** and documentation as a **repeatable pattern**, not individual techniques. Like the [AJAX pattern](https://en.wikipedia.org/wiki/Ajax_(programming)) for web applications, which used capabilities already available in modern browsers, the capabilities for virtual views are already present in most modern database platforms, without requiring any configuration changes or custom extensions.
 
 ### What's Controversial Here
 
@@ -46,9 +46,18 @@ This manifesto admittedly relies on multi-database platforms like Trino as the "
 
 ### A Quick Primer on Classical SQL Views
 
-SQL views are saved SELECT statements that act like virtual tables. Traditional use cases for views focus on hiding complexity (so that joins and complex queries don't have to be repeated over and over in user queries) and re-shaping the rows and columns that are returned.
+SQL views are saved SELECT statements that can be queried like regular tables. Traditional use cases for views are hiding complexity (so that joins and other complex expressions don't have to be repeated over and over in queries) and re-shaping the rows and columns returned by queries.
 
-**Hiding joins**:
+With these classical use cases, views are just icing on your physical schema to make queries a little easier. Applications often access the physical schema directly, except when views are needed for security or convenience.
+
+```mermaid
+flowchart TD
+    App[Application] --> Tables[("Physical Tables")]
+    App -.-> Views["SQL Views<br/>(Optional)"]
+    Views --> Tables
+```
+
+**Example of hiding a join**:
 ```sql
 CREATE VIEW customer_orders AS 
 SELECT c.name, c.email, o.order_id, o.total, o.order_date
@@ -56,7 +65,7 @@ FROM customers c
 JOIN orders o ON c.customer_id = o.customer_id;
 ```
 
-**Adding computed columns**:
+**Example of adding computed columns**:
 ```sql
 CREATE VIEW users_enhanced AS
 SELECT 
@@ -68,7 +77,7 @@ SELECT
 FROM users;
 ```
 
-**Redacting sensitive data**:
+**Example of redacting sensitive data**:
 ```sql
 -- Omit SSN column, filter to current user's data
 CREATE VIEW my_profile AS
@@ -77,7 +86,7 @@ FROM users
 WHERE user_id = CURRENT_USER_ID();
 ```
 
-**Caching results** (materialized views):
+**Example of caching results (materialized views)**:
 ```sql
 CREATE MATERIALIZED VIEW daily_sales_summary AS
 SELECT 
@@ -88,82 +97,58 @@ FROM orders
 GROUP BY date_trunc('day', order_date);
 ```
 
-With these classical use-cases, views are just icing on your physical schema to make it a little easier to use.
+Even though views like the examples above can be very helpful for reusing SQL statements, many applications only use views sparingly, with most queries directly referencing the physical schema.
 
-```mermaid
-flowchart LR
-    App[Application] --> Views[SQL Views]
-    Views --> Tables[(Physical Tables)]
-    
-    style Views fill:#e1f5ff
-    style Tables fill:#ffe1e1
-```
+### The Cost of Tight Coupling to Physical Schemas
 
-### The Limitation of Traditional Views
-
-Traditional views have a fundamental constraint: they're tightly coupled to their physical schema.
-
-- Changing underlying tables often requires view updates
+Many database applications (especially those with light use of views) have a fundamental and widely accepted constraint. They are tightly coupled to their physical databases, tables and views. Because of this tight coupling:
+- Applications must know which connector(s) to query
 - Views live in the same database/connector as their tables
-- Applications must know which connector to query
-- Migrating storage means changing application code everywhere
+- Migrating storage or schema always means changing application code
 
 **Example of the problem**:
 ```sql
 -- Application queries PostgreSQL directly
-SELECT * FROM postgresql.app_schema.users WHERE active = true;
+SELECT * FROM postgresql.app_schema.users;
 
--- Want to move to Iceberg? Change application code everywhere.
-SELECT * FROM iceberg.app_schema.users WHERE active = true;
+-- Want to move to Iceberg? Change application code like this...
+SELECT * FROM iceberg.app_schema.users;
 
--- Have data in both? Application must handle the complexity.
+-- Have data in both? Application must again handle the complexity like this...
 SELECT * FROM postgresql.app_schema.users WHERE active = true
 UNION ALL
-SELECT * FROM iceberg.app_schema.users WHERE archived = false;
+SELECT * FROM iceberg.app_schema.users WHERE active = false;
 ```
 
-This tight coupling makes evolution painful. Every storage change ripples through any application code that directly accesses the database. As good architects, we can try to isolate those changes to just the data access layers of each application. But if there is a large number of applications, updating each one for data source changes is a chore.
+As good architects, we hope to isolate these queries in the data access layers of our applications, but every storage change still has to ripple through any code that directly references the database. This makes evolution and migrations painful. 
 
 ### The Virtual View Approach
 
-**Core Definition**: Virtual views are organized by application or feature rather than physical storage, designed to be replaced with different implementations while maintaining the same interface.
-
-**Key characteristics**:
-
-- **Detached from physical schema organization** - Named by application domain, not storage technology
+Unlike physical tables and traditional views, virtual views are organized by application or feature, designed to be replaced with different implementations while maintaining the same interface. Virtual views decouple applications from physical storage, through layers of views that can evolve independently, even dynamically at runtime. Virtual views are always:
+- **Application-first** - Named by application domain or feature, not storage technology
+- **Detached from physical schemas** - Views are used for most application queries, not physical tables  
 - **Layered into hierarchies** - Views depend on other views, creating swappable layers
 - **Independently replaceable** - Each layer can be swapped without affecting others
-- **Multi-connector capable** - Can span PostgreSQL, Iceberg, MySQL, Redis in one view
-- **Application-first** - Applications query views, not physical tables (usually)
-
-**Why Trino?**
-
-While most SQL databases support views, Trino and other multi-platform engines (Starburst Galaxy and Enterprise, Athena, Presto) make virtual views particularly powerful:
-
-- **Native cross-connector queries** - Join PostgreSQL with Iceberg with MySQL in one view
-- **Views reference any catalog** - No artificial boundaries
-- **No external ETL needed** - Query federation with consistent SQL dialect
-- **Federated query optimization** - Push predicates down to source systems
+- **Multi-connector capable** - Each layer can use one or more data sources (including predefined demo and test datasets)
 
 ```mermaid
 flowchart TD
-    App[Application Code] --> AppCatalog[Application Catalog<br/>myapp.data.*]
-    AppCatalog --> ViewHierarchy[Virtual View<br/>Hierarchy]
-    ViewHierarchy --> PG[(PostgreSQL)]
-    ViewHierarchy --> Ice[(Iceberg)]
-    ViewHierarchy --> MySQL[(MySQL)]
-    
-    style AppCatalog fill:#e1f5ff
-    style ViewHierarchy fill:#ffe1e1
+    App["Application<br/>(myapp)"] --> AppCatalog["Application Catalog<br/>(myapp.data.*)"]
+    AppCatalog --> ViewHierarchy[Application View<br/>Hierarchy]
+    ViewHierarchy -.-> Demo[("Predefined<br/>Demo Data")]
+    ViewHierarchy -.-> MongoDB[(MongoDB)]
+    ViewHierarchy -.-> PG[(PostgreSQL)]
+    ViewHierarchy -.-> Ice[(Iceberg)]
+    ViewHierarchy -.-> Test[("Integration<br/>Test Data")]
 ```
 
-This is the foundation: to decouple applications from physical storage through a layer of virtual views that can evolve independently.
+The rest of this document expands on this definition and provides other advice about using this pattern in your applications.
 
 ---
 
 ## The Eight Principles of Virtual View Hierarchies
 
-These eight principles form the foundation of effective virtual view architecture. Each addresses a specific concern—from organizational structure to security to maintainability.
+These eight principles form the foundation of effective virtual view architecture. Each addresses a specific concern, from organizational structure to security to maintainability.
 
 1. [Virtual Views Belong to Applications, Not Schemas](#principle-1-virtual-views-belong-to-applications-not-schemas)
 2. [Applications Query Virtual Views (Usually)](#principle-2-applications-query-virtual-views-usually)
@@ -2377,5 +2362,5 @@ To the extent possible under law, the author has waived all copyright and relate
 
 ---
 
-**Version**: 0.1
-**Last Updated**: 2025-12-10
+**Version**: 0.2
+**Last Updated**: 2025-12-15
