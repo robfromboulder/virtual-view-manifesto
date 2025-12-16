@@ -1651,7 +1651,7 @@ git checkout <commit-hash> -- myapp/data/events.json
 
 ### Pitfall 1: Type Mismatch Chaos
 
-**Problem**: Replace view without explicit casts, types change, dependent queries break mysteriously.
+**Problem**: Replace view without explicit casts, types change, dependent queries break mysteriously. This is the most common problem encountered when migrating view hierarchies or making them dynamically reconfigurable.
 
 **Example**:
 ```sql
@@ -1667,7 +1667,7 @@ FROM base b
 JOIN orders o ON b.id = o.customer_id;  -- Type mismatch error
 ```
 
-**Solution**: Always use explicit CAST in base views:
+**Solution**: Always use explicit CAST in base views.
 ```sql
 CREATE VIEW base AS
 SELECT CAST(id AS BIGINT) as id FROM source;
@@ -1677,20 +1677,56 @@ CREATE OR REPLACE VIEW base AS
 SELECT CAST(id AS BIGINT) as id FROM different_source;
 ```
 
-### Pitfall 2: Circular Dependencies
+### Pitfall 2: Forgetting to Update Dependent Layers
 
-**Problem**: View A → View B → View A
+**Problem**: Replace base view, forget middle layers exist, they break.
 
-**Trino prevents this**, but error message appears during creation:
+**Example**:
 ```sql
-CREATE VIEW a AS SELECT * FROM b;
-CREATE VIEW b AS SELECT * FROM a;
--- Error: Circular dependency detected: a -> b -> a
+-- Base view
+CREATE VIEW base AS SELECT CAST(id AS BIGINT) as id, name FROM source1;
+
+-- Middle layer
+CREATE VIEW middle AS SELECT id, UPPER(name) as name FROM base;
+
+-- Top layer
+CREATE VIEW top AS SELECT * FROM middle;
+
+-- Replace base, add new column
+CREATE OR REPLACE VIEW base AS 
+SELECT CAST(id AS BIGINT) as id, name, email FROM source2;
+
+-- Middle layer doesn't expose email!
+-- Top layer consumers can't access it
 ```
 
-**Solution**: Design hierarchies as directed acyclic graphs (DAGs). Use ViewMapper to visualize and detect cycles.
+**Solution**: Use ViewMapper to identify all dependents before making changes. Update layers bottom-up. Try migrations in a development or staging environment prior to running in production.
 
-### Pitfall 3: Permission Confusion
+### Pitfall 3: Breaking Application Assumptions
+
+**Problem**: View replacement changes behavior in ways application doesn't expect.
+
+**Example**:
+```sql
+-- Original: Always returns rows in id order
+CREATE VIEW myapp.events AS
+SELECT * FROM postgresql.events 
+ORDER BY id;
+
+-- Replacement: No ORDER BY, application breaks expecting sorted data
+CREATE OR REPLACE VIEW myapp.events AS
+SELECT * FROM iceberg.events;  -- No ORDER BY!
+```
+
+**Solution**:
+- Use ViewMapper to identify dependency relationships
+- Document view contracts (sort order, NULL behavior, uniqueness)
+- Maintain behavior during replacements
+- If changing behavior, update application code first
+- Add ORDER BY in view if application depends on it (and verify performance)
+- Consider sorting data in application code rather than views
+
+### Pitfall 4: Permission Confusion
 
 **Problem**: Users can query view but not underlying tables (or vice versa).
 
@@ -1715,9 +1751,9 @@ COMMENT ON VIEW myapp.users IS
 'Requires SELECT permission on postgresql.users table';
 ```
 
-### Pitfall 4: Lost View Definitions
+### Pitfall 5: Lost View Definitions
 
-**Problem**: Views stored in connector that gets decommissioned.
+**Problem**: Views stored in connector that gets decommissioned or isn't working properly at runtime.
 
 **Example**:
 ```sql
@@ -1729,65 +1765,20 @@ CREATE VIEW postgresql_test.myapp.users AS ...
 
 **Solution**:
 - Follow Principle 7: choose canonical storage carefully
-- Export view definitions to version control regularly
-- Use ViewZoo with git for automatic version control
-- Use `SHOW CREATE VIEW` for manual backups
+- Store views in a system that is regularly backed up
+- Alternatively export view definitions to version control
+- Use `SHOW CREATE VIEW` to inspect definitions
 
-**ViewZoo advantage**: View definitions are files in git repository, making backup and recovery trivial.
+### Pitfall 6: Circular Dependencies
 
-### Pitfall 5: Breaking Application Assumptions
+**Problem**: View A → View B → View A
 
-**Problem**: View replacement changes behavior in ways application doesn't expect.
-
-**Example**:
+**Trino prevents this**:
 ```sql
--- Original: Always returns rows in id order
-CREATE VIEW myapp.events AS
-SELECT * FROM postgresql.events 
-ORDER BY id;
-
--- Replacement: No ORDER BY, application breaks expecting sorted data
-CREATE OR REPLACE VIEW myapp.events AS
-SELECT * FROM iceberg.events;  -- No ORDER BY!
+CREATE VIEW a AS SELECT * FROM b;
+CREATE VIEW b AS SELECT * FROM a;
+-- Error: Circular dependency detected: a -> b -> a
 ```
-
-**Solution**:
-- Document view contracts (sort order, NULL behavior, uniqueness)
-- Maintain behavior during replacements
-- If changing behavior, update application code first
-- Add ORDER BY in view if application depends on it
-
-```sql
--- Preserve ordering in view definition
-CREATE OR REPLACE VIEW myapp.events AS
-SELECT * FROM iceberg.events 
-ORDER BY id;
-```
-
-### Pitfall 6: Forgetting to Update Dependent Layers
-
-**Problem**: Replace base view, forget middle layers exist, they break.
-
-**Example**:
-```sql
--- Base view
-CREATE VIEW base AS SELECT CAST(id AS BIGINT) as id, name FROM source1;
-
--- Middle layer
-CREATE VIEW middle AS SELECT id, UPPER(name) as name FROM base;
-
--- Top layer
-CREATE VIEW top AS SELECT * FROM middle;
-
--- Replace base, add new column
-CREATE OR REPLACE VIEW base AS 
-SELECT CAST(id AS BIGINT) as id, name, email FROM source2;
-
--- Middle layer doesn't expose email!
--- Top layer consumers can't access it
-```
-
-**Solution**: Use ViewMapper to identify all dependents before making changes. Update layers bottom-up.
 
 ---
 
@@ -1795,39 +1786,29 @@ SELECT CAST(id AS BIGINT) as id, name, email FROM source2;
 
 The previous section covered mistakes to avoid when using virtual views. This section is different. It identifies scenarios where the virtual view pattern itself may not be the right architectural choice.
 
-These aren't failures of implementation. They're legitimate decisions to skip the abstraction entirely. Virtual views solve specific problems; when those problems don't exist, the overhead isn't justified. Recognizing these boundaries separates pragmatic thinking from cargo-cult architecture.
+These aren't failures of implementation, they're legitimate decisions to skip the abstraction entirely. Virtual views solve specific problems and when those problems don't exist, the overhead isn't justified. Recognizing these boundaries separates pragmatic thinking from cargo-cult architecture.
 
-### Anti-Pattern 1: Over-Abstraction for Simple Cases
+### Anti-Pattern 1: Single-Layer Hierarchies
 
-**Symptom**: Single table, no plans to change storage, no filtering, no computed columns, view created "just because."
+**Symptom**: View has no dependents, will never have multiple versions, exists in isolation. No filtering, no computed columns, view created "just because."
 
-**Problem**: Adds overhead without benefit.
+**Problem**: You don't have a hierarchy, just a view. The overhead may not be worth it.
 
-**Example of unnecessary view**:
+**Example**:
 ```sql
--- Table is simple and stable
-CREATE TABLE postgresql.app.settings (
-  setting_key VARCHAR,
-  setting_value VARCHAR
-);
-
--- Unnecessary view adds no value
-CREATE VIEW myapp.settings AS
-SELECT setting_key, setting_value 
-FROM postgresql.app.settings;
-
--- Just query the table directly
-SELECT * FROM postgresql.app.settings 
-WHERE setting_key = 'api_timeout';
+-- This isn't a hierarchy, just one view
+-- No layers, no swappability, no real abstraction
+-- Just an extra indirection
+CREATE VIEW myapp.config AS
+SELECT key, value FROM postgresql.config;
 ```
 
-**When to add the view**: Later, when you actually need to:
-- Swap storage backends
-- Add computed columns
-- Implement filtering logic
-- Create a hierarchy of related views
+**When it becomes worthwhile**:
+- When adding more layers
+- When adding filtered or computed columns
+- When planning to swap implementations (prototype → prod)
 
-**Rule**: Don't add abstraction until you need it. Wait for the second use case.
+**Rule**: A single view is meh. A hierarchy with swappable layers is powerful. One view pretending to be a hierarchy may be overhead without benefit, unless you're confident that layers will be added in the future.
 
 ---
 
@@ -1835,7 +1816,7 @@ WHERE setting_key = 'api_timeout';
 
 **Symptom**: Microsecond latency requirements, extremely high query volume, proven bottleneck.
 
-**Problem**: Views add query planning overhead (usually negligible, but matters at extremes).
+**Problem**: Views add query planning overhead (usually negligible, but matters at extremes) and may not allow the level of control needed for advanced queries.
 
 **When direct access is justified**:
 - High-frequency trading systems (submillisecond latency)
@@ -1885,7 +1866,7 @@ def get_orders(user_id):
 
 ### Anti-Pattern 3: Ad-Hoc Analytics and Exploration
 
-**Symptom**: Data scientists exploring data, one-off reports, administrative queries.
+**Symptom**: Data scientists are exploring data, doing one-off reports, and running administrative queries, outside the established structure of application and feature hierarchies.
 
 **Problem**: Virtual views add indirection that confuses exploratory analysis. Fixed structure limits flexibility.
 
@@ -1923,32 +1904,6 @@ ORDER BY event_count DESC;
 - One-off ad-hoc queries
 - Data quality investigations
 - Schema discovery and profiling
-
----
-
-### Anti-Pattern 4: Single-Layer "Hierarchies"
-
-**Symptom**: View has no dependents, will never have multiple versions, exists in isolation.
-
-**Problem**: You don't have a hierarchy, just a view. The overhead may not be worth it.
-
-**Example**:
-```sql
--- This isn't a hierarchy, just one view
-CREATE VIEW myapp.config AS
-SELECT key, value FROM postgresql.config;
-
--- No layers, no swappability, no real abstraction
--- Just an extra indirection
-```
-
-**When it becomes worthwhile**:
-- When you add a second layer
-- When you plan to swap implementations (prototype → prod)
-- When you need to hide complexity or span multiple sources
-- When you build dependent views on top
-
-**Rule**: A single view is fine. A hierarchy with swappable layers is powerful. One view pretending to be a hierarchy is overhead without benefit.
 
 ---
 
@@ -2230,5 +2185,5 @@ To the extent possible under law, the author has waived all copyright and relate
 
 ---
 
-**Version**: 0.3
+**Version**: 0.4
 **Last Updated**: 2025-12-15

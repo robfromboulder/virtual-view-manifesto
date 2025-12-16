@@ -2,9 +2,9 @@
 
 **Project**: The Virtual View Manifesto
 **Author**: Rob Dickinson (robfromboulder)
-**Current Version**: 0.3
+**Current Version**: 0.4
 **Last Updated**: 2025-12-16
-**Document Length**: ~2234 lines / ~9,721 words
+**Document Length**: ~2189 lines / ~9,600 words
 
 ---
 
@@ -27,12 +27,12 @@ The README is organized in these major sections:
 4. **Practical Patterns** (lines 1138-1402): Four common hierarchy designs
 5. **Implementation Guide** (lines 1403-1572): Step-by-step getting started
 6. **View Lifecycle Management** (lines 1573-1649): Creating, replacing, dropping views
-7. **Common Pitfalls** (lines 1650-1793): Six mistakes and solutions
-8. **When NOT to Use** (lines 1794-1954): Four anti-patterns
-9. **Related Tools** (lines 1955-1991): ViewMapper and ViewZoo documentation
-10. **Glossary** (lines 1992-2017): Technical term definitions
-11. **Appendix** (lines 2018-2212): Complete end-to-end example
-12. **Footer** (lines 2213-2234): License, thanks, metadata
+7. **Common Pitfalls** (lines 1650-1784): Six mistakes and solutions
+8. **When NOT to Use** (lines 1785-1909): Three anti-patterns
+9. **Related Tools** (lines 1910-1946): ViewMapper and ViewZoo documentation
+10. **Glossary** (lines 1947-1972): Technical term definitions
+11. **Appendix** (lines 1973-2167): Complete end-to-end example
+12. **Footer** (lines 2168-2189): License, thanks, metadata
 
 ---
 
@@ -163,10 +163,11 @@ This ensures future Claude sessions have the most current context.
 - Use comments sparingly (code should be self-evident)
 
 ### Mermaid Diagrams
-- Use flowcharts for architecture and dependencies
+- **Test rendering in GitHub preview** - Always validate before committing
+- Use flowcharts for architecture and dependencies (`flowchart TD` by default)
 - Use Gantt charts for timeline progressions
 - **Use black-and-white only** - No custom colors or fills for readability in both light and dark modes
-- Test rendering in GitHub preview
+- **Use quotes for labels even when not strictly required** - use `Tables[("Physical Tables")]`, not `Tables[(Physical Tables)]`
 
 ---
 
@@ -250,7 +251,7 @@ For each major principle or use case:
 
 ## 📝 Current Status
 
-**Version**: 0.3 (Draft)
+**Version**: 0.4 (Draft)
 **Status**: Work in progress, streamlined for initial peer review
 **Next Milestone**: 1.0 release after incorporating feedback
 **Entire document is open for review**
@@ -287,7 +288,16 @@ When you ask Claude to work on this project, you can use these shortcuts:
 
 ## 🔄 Change Log
 
-### 2025-12-16
+### 2025-12-16 (version 0.4)
+- Reordered Common Pitfalls by decreasing impact and frequency (Type Mismatch → Forgetting Dependents → Breaking Assumptions → Permissions → Lost Definitions → Circular Dependencies)
+- Consolidated Anti-Patterns 1 & 4 ("Over-Abstraction" and "Single-Layer Hierarchies") into single section
+- Reduced anti-pattern count from 4 to 3
+- Voice improvements: "A single view is meh" and other conversational tweaks
+- Added practical guidance: test migrations in dev/staging, consider sorting in application code
+- Net change: 45 lines reduced (119 deletions, 75 insertions)
+- Document reduced from 2234 to 2189 lines, ~9,600 words
+
+### 2025-12-16 (version 0.3)
 - Major document streamlining: reduced from ~70,000 words to ~9,721 words
 - Added CAUTION callout at document start about work-in-progress status
 - Renamed Principle 1 from "Not Schemas" to "Not Physical Schemas" for clarity
@@ -299,9 +309,8 @@ When you ask Claude to work on this project, you can use these shortcuts:
 - Reduced glossary by removing Entry/Filter/Merge Layer definitions (covered in Pattern 1)
 - Updated ViewZoo and ViewMapper references to inline links where appropriate
 - Net change: 134 lines reduced (235 deletions, 101 insertions)
-- Version bumped to 0.3
 
-### 2025-12-15
+### 2025-12-15 (version 0.2)
 - Improved information flow in Introduction section
 - Added "icing on physical schema" metaphor earlier for better contrast
 - Removed redundant "Why Trino?" subsection
@@ -311,7 +320,7 @@ When you ask Claude to work on this project, you can use these shortcuts:
 - Updated Mermaid guidelines to require black-and-white for light/dark mode readability
 - Added "Improving information flow" editing pattern to Common Editing Patterns
 
-### 2025-12-10
+### 2025-12-10 (version 0.1)
 - Initial CLAUDE.md created from AUTHORS_NOTES.md
 - Added collaboration preferences (complete drafts, priority order)
 - Added future topics backlog
