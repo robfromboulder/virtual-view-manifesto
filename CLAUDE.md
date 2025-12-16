@@ -2,9 +2,9 @@
 
 **Project**: The Virtual View Manifesto
 **Author**: Rob Dickinson (robfromboulder)
-**Current Version**: 0.2
-**Last Updated**: 2025-12-15
-**Document Length**: ~2379 lines / ~70,000 words
+**Current Version**: 0.3
+**Last Updated**: 2025-12-16
+**Document Length**: ~2234 lines / ~9,721 words
 
 ---
 
@@ -21,18 +21,18 @@ This is a technical manifesto about virtual view hierarchies in SQL databases, w
 ## 📐 Document Structure Quick Reference
 
 The README is organized in these major sections:
-1. **Introduction** (lines 1-162): Problem statement, classical vs virtual views
-2. **Eight Principles** (lines 164-737): Core architectural principles with examples
-3. **Use Cases** (lines 739-1273): Six practical scenarios when to use virtual views
-4. **Practical Patterns** (lines 1275-1538): Four common hierarchy designs
-5. **Implementation Guide** (lines 1540-1707): Step-by-step getting started
-6. **View Lifecycle Management** (lines 1709-1784): Creating, replacing, dropping views
-7. **Common Pitfalls** (lines 1786-1928): Six mistakes and solutions
-8. **When NOT to Use** (lines 1930-2089): Four anti-patterns
-9. **Related Tools** (lines 2091-2127): ViewMapper and ViewZoo documentation
-10. **Glossary** (lines 2129-2162): Technical term definitions
-11. **Appendix** (lines 2164-2357): Complete end-to-end example
-12. **Footer** (lines 2359-2379): License, thanks, metadata
+1. **Introduction** (lines 48-153): Problem statement, classical vs virtual views
+2. **Eight Principles** (lines 154-602): Core architectural principles with examples
+3. **Use Cases** (lines 603-1137): Six practical scenarios when to use virtual views
+4. **Practical Patterns** (lines 1138-1402): Four common hierarchy designs
+5. **Implementation Guide** (lines 1403-1572): Step-by-step getting started
+6. **View Lifecycle Management** (lines 1573-1649): Creating, replacing, dropping views
+7. **Common Pitfalls** (lines 1650-1793): Six mistakes and solutions
+8. **When NOT to Use** (lines 1794-1954): Four anti-patterns
+9. **Related Tools** (lines 1955-1991): ViewMapper and ViewZoo documentation
+10. **Glossary** (lines 1992-2017): Technical term definitions
+11. **Appendix** (lines 2018-2212): Complete end-to-end example
+12. **Footer** (lines 2213-2234): License, thanks, metadata
 
 ---
 
@@ -208,7 +208,7 @@ For each major principle or use case:
 
 ### Optimizations for Large Document Processing
 
-**The README is very large (~70K words)**. When working with it:
+**The README is ~9,700 words** (significantly streamlined from original ~70K). When working with it:
 
 1. **Provide complete drafts**: When making changes, provide the full updated content
 2. **Reference by section name**: "Update the Principle 5 section" rather than "update lines 450-531"
@@ -244,13 +244,14 @@ For each major principle or use case:
 - Remove redundant subsections when content is already covered elsewhere
 - Ensure diagram elements match surrounding text (e.g., if diagram shows demo/test data, mention it)
 - Make example headers consistent ("Example of..." pattern)
+- Use GitHub callout boxes (> [!CAUTION], > [!TIP]) for important warnings and tips
 
 ---
 
 ## 📝 Current Status
 
-**Version**: 0.2 (Draft)
-**Status**: Awaiting peer review and community feedback
+**Version**: 0.3 (Draft)
+**Status**: Work in progress, streamlined for initial peer review
 **Next Milestone**: 1.0 release after incorporating feedback
 **Entire document is open for review**
 
@@ -279,12 +280,26 @@ When you ask Claude to work on this project, you can use these shortcuts:
 
 ---
 
-**Last Updated**: 2025-12-15
+**Last Updated**: 2025-12-16
 **Maintained By**: Claude Code (for Rob's review and approval)
 
 ---
 
 ## 🔄 Change Log
+
+### 2025-12-16
+- Major document streamlining: reduced from ~70,000 words to ~9,721 words
+- Added CAUTION callout at document start about work-in-progress status
+- Renamed Principle 1 from "Not Schemas" to "Not Physical Schemas" for clarity
+- Simplified all eight principles by removing redundant explanatory text and some Mermaid diagrams
+- Removed Mermaid diagrams from Principle 1 (Bad/Good comparison), Principle 3 (Gantt), and Principle 5 (type mismatch)
+- Added GitHub callout boxes for warnings (Principle 4, 6) using > [!CAUTION] and > [!TIP] syntax
+- Streamlined decision trees and implementation bullets throughout
+- Simplified Principle 7 by removing detailed ViewZoo git workflow (already covered in Related Tools)
+- Reduced glossary by removing Entry/Filter/Merge Layer definitions (covered in Pattern 1)
+- Updated ViewZoo and ViewMapper references to inline links where appropriate
+- Net change: 134 lines reduced (235 deletions, 101 insertions)
+- Version bumped to 0.3
 
 ### 2025-12-15
 - Improved information flow in Introduction section
