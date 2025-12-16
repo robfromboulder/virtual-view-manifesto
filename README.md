@@ -279,7 +279,7 @@ public void generateReports() {
 
 ### Principle 3: Every Virtual View Has Multiple Versions
 
-**Rule**: Design each view expecting to be replaced with static (testing), live (production), and hybrid (migration) versions.
+**Rule**: Design each view expecting to be replaced with static versions (for testing), live versions (for development, staging, production) and hybrid versions (for migrations and dynamic configurations).
 
 **Why**: Enables prototyping, testing, and seamless migrations, with current and future data sources. If a view only ever has one definition, you're not using this pattern to its full potential.
 
@@ -380,7 +380,7 @@ FROM myapp.internal.users_filtered;
 
 ### Principle 5: Never Change Column Types
 
-**Rule**: When replacing a view definition, avoid changing column types. Explicitly setting column types using `CAST` is a good habit.
+**Rule**: When replacing a view definition, avoid changing column types. It's a good habit to explicitly set column types using `CAST` whenever new columns are declared in a view.
 
 **Why**: Accidentally changing column types is the easiest way to break a view hierarchy. Trino does NOT validate types when replacing views. Breaking changes only surface at query time, potentially in production.
 
@@ -494,7 +494,7 @@ GROUP BY date_trunc('month', order_date);
 
 ### Principle 7: Store Views in a Canonical Location
 
-**Rule**: Choose one authoritative connector for virtual view storage and commit to it, or use [ViewZoo](https://github.com/robfromboulder/viewzoo) for current and future storage.
+**Rule**: Choose one authoritative connector for virtual view storage and commit to it, or use [ViewZoo](https://github.com/robfromboulder/viewzoo) to store current and future views using any connector.
 
 **Why**: View definitions must be persisted somewhere, even when using static data (no real data sources) or spanning multiple data sources.
 
@@ -537,7 +537,7 @@ Do you already use Iceberg?
 
 ### Principle 8: Map Complexity, Don't Memorize It
 
-**Rule**: Use tools like [ViewMapper](https://github.com/robfromboulder/viewmapper) to discover and visualize view dependencies rather than expecting humans to track relationships mentally.
+**Rule**: Use tools like [ViewMapper](https://github.com/robfromboulder/viewmapper) to discover and visualize view dependencies rather than expecting humans to parse view definitions and track relationships mentally.
 
 **Why**: View hierarchies become complex quickly. SQL definitions don't show the dependency graph. `SHOW CREATE VIEW` is for debugging, not understanding architecture. Traditional ERD tools aren't a big help.
 
