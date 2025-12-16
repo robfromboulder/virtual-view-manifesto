@@ -126,7 +126,9 @@ As good architects, we can hope to isolate these queries in the data access laye
 
 ### The Virtual View Approach
 
-Unlike physical tables and traditional views, virtual views are organized by application or feature, designed to be replaced with different implementations while maintaining the same interface. Virtual views decouple applications from physical storage, through layers of views that can evolve independently, even dynamically at runtime. Virtual views are always:
+Unlike physical tables and traditional views, virtual views are organized by application or feature, designed to be replaced with different implementations while maintaining the same interface. Virtual views decouple applications from physical storage, through layers of views that can evolve independently, even dynamically at runtime.
+
+Virtual views are always:
 - **Application-first** - Named by application domain or feature, not storage technology
 - **Detached from physical schemas** - Views are used for most application queries, not physical tables  
 - **Layered into hierarchies** - Views depend on other views, creating swappable layers
