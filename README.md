@@ -1,7 +1,7 @@
 # The Virtual View Manifesto
 **Stop treating SQL views like decoration. Start using them as your application's data contract.**
 
-Classical SQL views are boring schema decoration for hiding joins, adding computed columns, and enforcing permissions. Virtual views are different. They're architectural components that decouple applications from physical storage, enable prototyping and testing with static data, allow seamless migration to Iceberg, and support zero-downtime schema evolution. Virtual views can be layered into hierarchies, where any layer in the hierarchy can be replaced (even at runtime) without disrupting other layers or active queries.
+Classical SQL views are boring schema decoration for hiding joins, adding computed columns, and enforcing permissions. **Virtual views** are different. They're architectural components that decouple applications from physical storage, enable prototyping and testing with static data, allow seamless migration to Iceberg, and support zero-downtime schema evolution. Virtual views can be layered into **hierarchies**, where any layer in the hierarchy can be replaced (even at runtime) without disrupting other layers or active queries.
 
 Virtual view hierarchies can be implemented using Trino, Starburst Enterprise or Galaxy, Amazon Athena, Presto, and most databases that support SQL views (including Postgresql and MySQL). Trino is used for all examples here.
 
@@ -138,12 +138,12 @@ Virtual views are always:
 ```mermaid
 flowchart TD
     App["Application<br/>(myapp)"] --> AppCatalog["Application Catalog<br/>(myapp.data.*)"]
-    AppCatalog --> ViewHierarchy[Application View<br/>Hierarchy]
-    ViewHierarchy -.-> Demo[("Predefined<br/>Demo Data")]
-    ViewHierarchy -.-> MongoDB[(MongoDB)]
-    ViewHierarchy -.-> PG[(PostgreSQL)]
-    ViewHierarchy -.-> Ice[(Iceberg)]
-    ViewHierarchy -.-> Test[("Integration<br/>Test Data")]
+    AppCatalog --> Views["Application View<br/>Hierarchy"]
+    Views -.-> PG[("PostgreSQL<br/>(warm storage)")]
+    Views -.-> Ice[("Iceberg<br/>(cold storage)")]
+    Views -.-> Demo[("Predefined<br/>Demo Datasets")]
+    Views -.-> Test[("Integration<br/>Test Datasets")]
+    Views -.-> Future[("Future<br/>Connectors")]
 ```
 
 ---
