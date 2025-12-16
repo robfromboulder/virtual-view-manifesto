@@ -1651,7 +1651,7 @@ git checkout <commit-hash> -- myapp/data/events.json
 
 ### Pitfall 1: Type Mismatch Chaos
 
-**Problem**: Replace view without explicit casts, types change, dependent queries break mysteriously. This is the most common problem encountered when migrating view hierarchies or making them dynamically reconfigurable.
+**Problem**: Replace view without explicit casts, types change, dependent queries break mysteriously. This is the most common problem when migrating view hierarchies or making them dynamically reconfigurable.
 
 **Example**:
 ```sql
@@ -1786,7 +1786,7 @@ CREATE VIEW b AS SELECT * FROM a;
 
 The previous section covered mistakes to avoid when using virtual views. This section is different. It identifies scenarios where the virtual view pattern itself may not be the right architectural choice.
 
-These aren't failures of implementation, they're legitimate decisions to skip the abstraction entirely. Virtual views solve specific problems and when those problems don't exist, the overhead isn't justified. Recognizing these boundaries separates pragmatic thinking from cargo-cult architecture.
+These aren't failures of implementation, they're legitimate decisions to skip the abstraction entirely. Virtual views solve specific problems, and when those problems don't exist, the overhead isn't justified. Recognizing these boundaries separates pragmatic thinking from cargo-cult architecture.
 
 ### Anti-Pattern 1: Single-Layer Hierarchies
 
@@ -1866,7 +1866,7 @@ def get_orders(user_id):
 
 ### Anti-Pattern 3: Ad-Hoc Analytics and Exploration
 
-**Symptom**: Data scientists are exploring data, doing one-off reports, and running administrative queries, outside the established structure of application and feature hierarchies.
+**Symptom**: Data scientists need to explore data, build one-off reports, and run administrative queries, outside the established structure of application and feature hierarchies.
 
 **Problem**: Virtual views add indirection that confuses exploratory analysis. Fixed structure limits flexibility.
 
