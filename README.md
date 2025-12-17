@@ -603,7 +603,7 @@ flowchart TD
 1. [Rapid Prototyping](#use-case-1-rapid-prototyping)
 2. [Testing Data Edge Cases](#use-case-2-testing-data-edge-cases)
 3. [Zero-Downtime Schema Evolution](#use-case-3-zero-downtime-schema-evolution)
-4. [Isolating Per-Feature Storage](#use-case-4-isolating-per-feature-storage)
+4. [Modular Storage for Features and Agents](#use-case-4-modular-storage-for-features-and-agents)
 5. [Runtime Configuration Switching](#use-case-5-runtime-configuration-switching)
 6. [Ensuring Privacy and Compliance](#use-case-6-ensuring-privacy-and-compliance)
 7. [Extending Applications to Iceberg](#use-case-7-extending-applications-to-iceberg)
@@ -613,7 +613,9 @@ flowchart TD
 
 ### Use Case 1: Rapid Prototyping
 
-**The Challenge**: Need to build and test application logic before infrastructure exists or before schema is finalized.
+**The Challenge**: Build and test application logic before infrastructure exists and before physical schemas are finalized.
+
+**The Solution**: Define static datasets that enable UI development, business logic validation, and stakeholder demos without deploying or configuring any databases.
 
 **Simple example**:
 ```sql
@@ -702,14 +704,15 @@ gantt
 - Start building before infrastructure is ready
 - Validate requirements with stakeholders using realistic UI
 - Avoid wasting time on infrastructure for features that get cancelled
-- Smooth transition from prototype to production
-- Same view name throughout progression
+- Smooth transition from prototype to first implementation
 
 ---
 
 ### Use Case 2: Testing Data Edge Cases
 
-**The Challenge**: Test application behavior with edge cases, invalid data, or failure scenarios without corrupting production data.
+**The Challenge**: Test application behavior with edge cases like null values, invalid enums, duplicate keys, and broken foreign keys without configuring database servers or creating an alternate version of the schema.
+
+**The Solution**: Define static datasets with deliberately invalid data that would violate database constraints, enabling comprehensive edge case testing, without the hassle of disabling schema enforcement.
 
 **Simple example**:
 ```sql
@@ -807,7 +810,9 @@ configure_test_mode(current_config)
 
 ### Use Case 3: Zero-Downtime Schema Evolution
 
-**The Challenge**: Need to rename columns, restructure data, or migrate between schema versions without application downtime.
+**The Challenge**: Migrate between schema versions without application downtime, and without copying or reimporting existing datasets.
+
+**The Solution**: Incrementally change a view hierarchy, or create an updated copy of a view hierarchy, to enable schema migrations without downtime or interrupting any queries. 
 
 **Simple example**:
 ```sql
@@ -913,13 +918,11 @@ This ensures dependent views always have valid sources to query from during repl
 
 ---
 
-### Use Case 4: Isolating Per-Feature Storage
+### Use Case 4: Modular Storage for Features and Agents
 
-**The Challenge**: Microservices or modular monoliths where multiple teams need independent control over their data views without coordinating with other teams.
+**The Challenge**: Multiple teams need independent control over designing, implementing, and migrating their view hierarchies, with minimal coordination needed with other teams.
 
-**The Virtual View Solution**:
-
-Create separate, independent view hierarchies for each feature or service. Teams can develop, test, and deploy their views independently.
+**The Solution**: Create isolated view hierarchies per feature or agent, enabling teams to develop, test, and deploy their data layers independently without cross-team coordination or risk of breaking changes.
 
 **Example**:
 ```sql
@@ -979,9 +982,7 @@ flowchart LR
 
 **The Challenge**: Need to dynamically switch between different data sources based on feature flags, environment, or runtime configuration without redeploying application code.
 
-**The Virtual View Solution**:
-
-Programmatically swap view definitions based on configuration, enabling A/B testing, gradual rollouts, and environment-specific behavior.
+**The Solution**: Programmatically replace view definitions based on runtime configuration, enabling feature flags, A/B testing, and environment switching (dev/staging/prod), without having to restart the applications.
 
 **Example with programmatic switching**:
 ```python
@@ -1058,7 +1059,9 @@ git checkout feature/iceberg-storage
 
 ### Use Case 6: Ensuring Privacy and Compliance
 
-**The Challenge**: Implement system-wide privacy rules, data redaction, or tenant isolation without modifying every query.
+**The Challenge**: Implement tenant isolation, right-to-be-forgotten filtering, and PII redaction without having to repeat these restrictions in every query.
+
+**The Solution**: Enforce system-wide privacy rules and tenant isolation using dedicated layers in view hierarchies, providing a central audit point for compliance that applies automatically to all queries.
 
 **Simple example**:
 ```sql
@@ -1154,11 +1157,9 @@ flowchart TD
 
 ### Use Case 7: Extending Applications to Iceberg
 
-**The Challenge**:
+**The Challenge**: Existing application runs on PostgreSQL (or MySQL, etc.). Want to add Iceberg for cost-effective long-term storage, but can't rewrite application code. Need seamless transition, no downtime, no dual codebases.
 
-Existing application runs on PostgreSQL (or MySQL, etc.). Want to add Iceberg for cost-effective long-term storage, but can't rewrite application code. Need seamless transition, no downtime, no dual codebases.
-
-**The Virtual View Solution**:
+**The Solution**: Replace physical table references with virtual views pointing to legacy storage, then optionally add Iceberg using `UNION ALL` for historical data, without requiring any changes to application queries.
 
 **Phase 1: Establish the abstraction**
 
@@ -1236,10 +1237,15 @@ gantt
 
 ### Use Case 8: Cost and Availability Routing
 
-**Cost Optimization**: --> Query Routing for Cost Reduction or Outages
-- Route expensive analytical queries to cheaper cold storage
-- Tier data by access patterns (hot/warm/cold)
-- Implement intelligent caching layers
+**The Challenge**: Database dependencies are typically hardcoded, making it difficult to handle peak loads, service outages, or cost optimization without modifying and redeploying the application.
+
+**The Solution**: Reconfigure views at runtime to dynamically route between closest/fastest live sources, cached layers, and static fallback datasets based on availability and load conditions, providing resilience and cost control without code changes.
+
+**Simple example**:
+(Fallback from live payment gateway to static "service unavailable" dataset)
+
+**Realistic example**:
+(Multi-tier routing with Redis cache → PostgreSQL → S3 cold storage based on query patterns and service health)
 
 ---
 
@@ -1994,5 +2000,5 @@ To the extent possible under law, the author has waived all copyright and relate
 
 ---
 
-**Version**: 0.5
+**Version**: 0.51
 **Last Updated**: 2025-12-16

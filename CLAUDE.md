@@ -2,7 +2,7 @@
 
 **Project**: The Virtual View Manifesto
 **Author**: Rob Dickinson (robfromboulder)
-**Current Version**: 0.5
+**Current Version**: 0.51
 **Last Updated**: 2025-12-16
 **Document Length**: ~1998 lines / ~9,200 words
 
@@ -178,6 +178,14 @@ This ensures future Claude sessions have the most current context.
 4. **Example complexity**: Both simple and realistic for each major point
 5. **Iceberg emphasis**: Primary motivating use case, integrated throughout but not separate section
 
+### Use Case Selection Criteria
+When considering new use cases or examples:
+- **Focus on the virtual view pattern**, not just Trino capabilities
+- Ask: "Does this demonstrate something you *couldn't easily do* without virtual views?"
+- **Avoid use cases that are just Trino features** (e.g., "Cross-Database Federation" showcases Trino's federation but doesn't highlight the swappability/versioning that makes virtual views unique)
+- Good use cases demonstrate: swappable implementations, independent layer evolution, static-to-live progressions, runtime reconfiguration
+- Each use case should show a problem that virtual views solve better than alternatives
+
 ### Example Structure Pattern
 For each major principle or use case:
 1. **Simple example** (3-10 lines of SQL)
@@ -249,7 +257,7 @@ For each major principle or use case:
 
 ## 📝 Current Status
 
-**Version**: 0.5 (Draft)
+**Version**: 0.51 (Draft)
 **Status**: Work in progress, streamlined for initial peer review
 **Next Milestone**: 1.0 release after incorporating feedback
 **Entire document is open for review**
@@ -285,6 +293,11 @@ When you ask Claude to work on this project, you can use these shortcuts:
 ---
 
 ## 🔄 Change Log
+
+### 2025-12-16 (version 0.51)
+- **Refined all eight use case challenge/solution statements** for clarity, specificity, and value proposition
+- **Added "Use Case Selection Criteria" section** to CLAUDE.md emphasizing virtual view patterns over Trino-specific features
+- No structural changes; document remains at 1998 lines, ~9,200 words
 
 ### 2025-12-16 (version 0.5)
 - **Major restructuring**: Eliminated "Practical Patterns" and "View Lifecycle Management" sections
