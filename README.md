@@ -32,11 +32,9 @@ This manifesto admittedly relies on multi-database platforms like Trino as the "
 ## Table of Contents
 
 - [Introduction: Views as Architecture, Not Decoration](#introduction-views-as-architecture-not-decoration)
-- [The Eight Principles of Virtual View Hierarchies](#the-eight-principles-of-virtual-view-hierarchies)
+- [Principles of Virtual View Hierarchies](#principles-of-virtual-view-hierarchies)
 - [Use Cases: When Virtual Views Shine](#use-cases-when-virtual-views-shine)
-- [Practical Patterns: Common Hierarchy Designs](#practical-patterns-common-hierarchy-designs)
 - [Implementation Guide](#implementation-guide)
-- [View Lifecycle Management](#view-lifecycle-management)
 - [Common Pitfalls and Solutions](#common-pitfalls-and-solutions)
 - [When NOT to Use Virtual Views](#when-not-to-use-virtual-views)
 - [Related Tools](#related-tools)
@@ -151,7 +149,7 @@ flowchart TD
 
 ---
 
-## The Eight Principles of Virtual View Hierarchies
+## Principles of Virtual View Hierarchies
 
 1. [Virtual Views Belong to Applications, Not Physical Schemas](#principle-1-virtual-views-belong-to-applications-not-physical-schemas)
 2. [Applications Query Virtual Views (Usually)](#principle-2-applications-query-virtual-views-usually)
@@ -602,100 +600,18 @@ flowchart TD
 
 ## Use Cases: When Virtual Views Shine
 
-Virtual views aren't universally applicable—they solve specific architectural problems. The following use cases represent scenarios where the pattern delivers clear value.
-
-1. [Extending Applications to Iceberg](#use-case-1-extending-applications-to-iceberg)
-2. [Rapid Prototyping](#use-case-2-rapid-prototyping)
+1. [Rapid Prototyping](#use-case-1-rapid-prototyping)
+2. [Testing Data Edge Cases](#use-case-2-testing-data-edge-cases)
 3. [Zero-Downtime Schema Evolution](#use-case-3-zero-downtime-schema-evolution)
-4. [Privacy and Compliance Layers](#use-case-4-privacy-and-compliance-layers)
-5. [Testing and Simulation](#use-case-5-testing-and-simulation)
-6. [Multi-Source Federation](#use-case-6-multi-source-federation)
+4. [Isolating Per-Feature Storage](#use-case-4-isolating-per-feature-storage)
+5. [Runtime Configuration Switching](#use-case-5-runtime-configuration-switching)
+6. [Ensuring Privacy and Compliance](#use-case-6-ensuring-privacy-and-compliance)
+7. [Extending Applications to Iceberg](#use-case-7-extending-applications-to-iceberg)
+8. [Cost and Availability Routing](#use-case-8-cost-and-availability-routing)
 
 ---
 
-### Use Case 1: Extending Applications to Iceberg
-
-**The Challenge**:
-
-Existing application runs on PostgreSQL (or MySQL, etc.). Want to add Iceberg for cost-effective long-term storage, but can't rewrite application code. Need seamless transition, no downtime, no dual codebases.
-
-**The Virtual View Solution**:
-
-**Phase 1: Establish the abstraction**
-
-Before:
-```sql
--- Application queries physical table directly
-SELECT * FROM postgresql.myapp.logs WHERE event_time > ?
-```
-
-After:
-```sql
--- Create virtual view as intermediary
-CREATE VIEW myapp.data.logs AS
-SELECT 
-  CAST(id AS BIGINT) as log_id,
-  CAST(event AS VARCHAR) as event_type,
-  CAST(timestamp AS TIMESTAMP(3)) as event_time,
-  CAST(user_id AS BIGINT) as user_id
-FROM postgresql.myapp.logs;
-
--- Application code changes once (connection string only)
--- Now queries: SELECT * FROM myapp.data.logs WHERE event_time > ?
-```
-
-**Phase 2: Add Iceberg in hybrid mode**
-
-```sql
--- Union PostgreSQL (hot, recent data) with Iceberg (cold, historical)
-CREATE OR REPLACE VIEW myapp.data.logs AS
--- Recent data still in PostgreSQL
-SELECT log_id, event_type, event_time, user_id
-FROM postgresql.myapp.logs
-WHERE event_time > CURRENT_DATE - INTERVAL '30' DAYS
-  AND replicated = false
-UNION ALL
--- Historical data in Iceberg
-SELECT log_id, event_type, event_time, user_id
-FROM iceberg.archive.logs
-WHERE event_time <= CURRENT_DATE - INTERVAL '30' DAYS;
-```
-
-Zero application changes. Behind the scenes, a replication job moves old data from PostgreSQL to Iceberg and marks rows as replicated.
-
-**Phase 3: Eventually migrate entirely (optional)**
-
-```sql
--- Once all data is in Iceberg and PostgreSQL is ready to decommission
-CREATE OR REPLACE VIEW myapp.data.logs AS
-SELECT log_id, event_type, event_time, user_id
-FROM iceberg.warehouse.logs;
-```
-
-**What we're NOT covering**: How replication works, Iceberg table maintenance, partition strategies, compaction. This manifesto focuses on the view architecture that enables migration.
-
-**Benefits**:
-- Zero application downtime during migration
-- No "big bang" rewrite risk
-- Test Iceberg integration incrementally
-- Rollback is trivial (replace view definition)
-- Works with monoliths and microservices
-
-```mermaid
-gantt
-    title Iceberg Migration Timeline
-    dateFormat YYYY-MM-DD
-    section Application Code
-    SELECT * FROM myapp.data.logs :2024-01-01, 2024-12-31
-    section View Implementation
-    PostgreSQL Only       :a1, 2024-01-01, 90d
-    PG + Iceberg Hybrid   :a2, 2024-04-01, 120d
-    Iceberg Only          :a3, 2024-08-01, 2024-12-31
-```
-
----
-
-### Use Case 2: Rapid Prototyping
+### Use Case 1: Rapid Prototyping
 
 **The Challenge**: Need to build and test application logic before infrastructure exists or before schema is finalized.
 
@@ -761,204 +677,37 @@ WHERE o.status IN ('completed', 'shipped')
 GROUP BY c.customer_id;
 ```
 
+**Progression stages**:
+1. **Static VALUES**: UI and business logic development
+2. **Test database**: Integration testing
+3. **Staging database**: Beta testing with real-like data
+4. **Production database**: Live traffic
+5. **Hybrid (optional)**: Add Iceberg for scale
+
+**Timeline visualization**:
+```mermaid
+gantt
+    title View Definition Evolution
+    dateFormat YYYY-MM-DD
+    section View: analytics.customer_lifetime_value
+    Static VALUES       :a1, 2024-01-01, 14d
+    Dev Database        :a2, 2024-01-15, 35d
+    Staging Database    :a3, 2024-02-20, 14d
+    Prod Database       :a4, 2024-03-05, 2024-12-31
+    section Application Code
+    Unchanged           :2024-01-01, 2024-12-31
+```
+
 **Benefits**:
 - Start building before infrastructure is ready
 - Validate requirements with stakeholders using realistic UI
 - Avoid wasting time on infrastructure for features that get cancelled
 - Smooth transition from prototype to production
+- Same view name throughout progression
 
 ---
 
-### Use Case 3: Zero-Downtime Schema Evolution
-
-**The Challenge**: Need to rename columns, restructure data, or migrate between schema versions without application downtime.
-
-**Simple example**:
-```sql
--- Original physical schema (poor naming)
--- postgresql.app.users_v1 (columns: userid, fname, lname, addr)
-
--- Virtual view provides better names
-CREATE VIEW myapp.users AS
-SELECT 
-  userid as user_id, 
-  fname as first_name, 
-  lname as last_name,
-  addr as address
-FROM postgresql.app.users_v1;
-
--- Later: Migrate to improved physical schema
--- postgresql.app.users_v2 (columns: user_id, first_name, last_name, street_address)
-
--- Update view, application unchanged
-CREATE OR REPLACE VIEW myapp.users AS
-SELECT 
-  user_id, 
-  first_name, 
-  last_name,
-  street_address as address
-FROM postgresql.app.users_v2;
-```
-
-**Realistic example with backward compatibility**:
-```sql
--- V1 schema: Monolithic user table
-CREATE VIEW myapp.users AS
-SELECT 
-  CAST(user_id AS BIGINT) as user_id,
-  CAST(email AS VARCHAR) as email,
-  CAST(first_name AS VARCHAR) as first_name,
-  CAST(last_name AS VARCHAR) as last_name,
-  CAST(address AS VARCHAR) as address,
-  CAST(city AS VARCHAR) as city,
-  CAST(state AS VARCHAR) as state,
-  CAST(zip AS VARCHAR) as zip
-FROM postgresql.app.users_v1;
-
--- V2 schema: Normalized into users + addresses tables
--- Keep backward compatibility during migration
-CREATE OR REPLACE VIEW myapp.users AS
-SELECT 
-  CAST(u.user_id AS BIGINT) as user_id,
-  CAST(u.email AS VARCHAR) as email,
-  CAST(u.first_name AS VARCHAR) as first_name,
-  CAST(u.last_name AS VARCHAR) as last_name,
-  CAST(a.street AS VARCHAR) as address,
-  CAST(a.city AS VARCHAR) as city,
-  CAST(a.state AS VARCHAR) as state,
-  CAST(a.zip AS VARCHAR) as zip
-FROM postgresql.app.users_v2 u
-LEFT JOIN postgresql.app.addresses_v2 a 
-  ON u.user_id = a.user_id 
-  AND a.is_primary = true;
-
--- V3 schema: Changed email validation, need to handle legacy bad data
-CREATE OR REPLACE VIEW myapp.users AS
-SELECT 
-  CAST(u.user_id AS BIGINT) as user_id,
-  CAST(
-    CASE 
-      WHEN u.email LIKE '%@%' THEN u.email
-      ELSE u.legacy_email  -- Fallback for pre-validation data
-    END AS VARCHAR
-  ) as email,
-  CAST(u.first_name AS VARCHAR) as first_name,
-  CAST(u.last_name AS VARCHAR) as last_name,
-  CAST(a.street AS VARCHAR) as address,
-  CAST(a.city AS VARCHAR) as city,
-  CAST(a.state AS VARCHAR) as state,
-  CAST(a.zip AS VARCHAR) as zip
-FROM postgresql.app.users_v3 u
-LEFT JOIN postgresql.app.addresses_v3 a 
-  ON u.user_id = a.user_id 
-  AND a.is_primary = true;
-```
-
-**Benefits**:
-- Evolve schemas without application deployments
-- Support gradual migrations with parallel systems
-- Maintain backward compatibility during transitions
-- Hide physical schema complexity from applications
-
----
-
-### Use Case 4: Privacy and Compliance Layers
-
-**The Challenge**: Implement system-wide privacy rules, data redaction, or tenant isolation without modifying every query.
-
-**Simple example**:
-```sql
--- Base data view (internal only)
-CREATE VIEW myapp.internal.logs_raw AS
-SELECT 
-  log_id, event_type, user_id, 
-  user_email, ip_address, event_time
-FROM postgresql.logs;
-
--- Privacy layer: Redact PII for most users
-CREATE VIEW myapp.logs AS
-SELECT 
-  log_id,
-  event_type,
-  user_id,
-  -- Redact email and IP unless admin
-  CASE WHEN is_admin() THEN user_email ELSE 'REDACTED' END as user_email,
-  CASE WHEN is_admin() THEN ip_address ELSE 'REDACTED' END as ip_address,
-  event_time
-FROM myapp.internal.logs_raw;
-```
-
-**Realistic example with tenant isolation**:
-```sql
--- Multi-tenant application
--- Each customer should only see their own data
-
--- Base data (all tenants mixed)
-CREATE VIEW myapp.internal.orders_all AS
-SELECT 
-  order_id, tenant_id, customer_id, 
-  order_total, order_date, payment_method
-FROM postgresql.orders;
-
--- Tenant-isolated view (automatic filtering)
-CREATE VIEW myapp.orders AS
-SELECT 
-  order_id, customer_id, order_total, 
-  order_date, payment_method
-FROM myapp.internal.orders_all
-WHERE tenant_id = current_tenant_id()
-   OR is_superuser();
-
--- Right-to-be-forgotten implementation
-CREATE VIEW myapp.internal.customers_active AS
-SELECT 
-  customer_id, email, name, address, phone
-FROM postgresql.customers
-WHERE deleted_at IS NULL
-  AND customer_id NOT IN (
-    SELECT customer_id 
-    FROM postgresql.deletion_requests 
-    WHERE status = 'approved'
-  );
-
--- Application view with both privacy and tenant isolation
-CREATE VIEW myapp.customers AS
-SELECT 
-  customer_id, 
-  email, 
-  name, 
-  -- Redact address for non-privileged users
-  CASE 
-    WHEN is_privileged_user() THEN address 
-    ELSE 'REDACTED' 
-  END as address,
-  phone
-FROM myapp.internal.customers_active
-WHERE tenant_id = current_tenant_id();
-```
-
-**Benefits**:
-- Single point of control for privacy rules
-- Enforce compliance without trusting application code
-- Easy to audit (one view to review, not hundreds of queries)
-- Update privacy rules without application deployment
-
-```mermaid
-flowchart TD
-    App[Application Query] --> Privacy[Privacy Layer<br/>myapp.customers]
-    Privacy --> Isolation[Tenant Isolation<br/>myapp.internal.customers_active]
-    Isolation --> Physical[(Physical Table<br/>postgresql.customers)]
-    
-    Privacy -->|Redacts PII| App
-    Isolation -->|Filters by tenant| Privacy
-    
-    style Privacy fill:#ffe1e1
-    style Isolation fill:#ffe1e1
-```
-
----
-
-### Use Case 5: Testing and Simulation
+### Use Case 2: Testing Data Edge Cases
 
 **The Challenge**: Test application behavior with edge cases, invalid data, or failure scenarios without corrupting production data.
 
@@ -1056,236 +805,121 @@ configure_test_mode(current_config)
 
 ---
 
-### Use Case 6: Multi-Source Federation
+### Use Case 3: Zero-Downtime Schema Evolution
 
-**The Challenge**: Application needs data from multiple sources (PostgreSQL + MySQL + Iceberg + Redis).
+**The Challenge**: Need to rename columns, restructure data, or migrate between schema versions without application downtime.
 
 **Simple example**:
 ```sql
--- Join across two databases
-CREATE VIEW myapp.customer_orders AS
+-- Original physical schema (poor naming)
+-- postgresql.app.users_v1 (columns: userid, fname, lname, addr)
+
+-- Virtual view provides better names
+CREATE VIEW myapp.users AS
 SELECT 
-  c.customer_id,
-  c.customer_name,
-  o.order_id,
-  o.order_total
-FROM postgresql.crm.customers c
-JOIN mysql.orders.orders o ON c.customer_id = o.customer_id;
+  userid as user_id, 
+  fname as first_name, 
+  lname as last_name,
+  addr as address
+FROM postgresql.app.users_v1;
+
+-- Later: Migrate to improved physical schema
+-- postgresql.app.users_v2 (columns: user_id, first_name, last_name, street_address)
+
+-- Update view, application unchanged
+CREATE OR REPLACE VIEW myapp.users AS
+SELECT 
+  user_id, 
+  first_name, 
+  last_name,
+  street_address as address
+FROM postgresql.app.users_v2;
 ```
 
-**Realistic example**:
+**Realistic example with backward compatibility**:
 ```sql
--- Complex federation: CRM in PostgreSQL, orders in Iceberg, product cache in Redis
-
-CREATE VIEW myapp.analytics.order_summary AS
+-- V1 schema: Monolithic user table
+CREATE VIEW myapp.users AS
 SELECT 
-  c.customer_id,
-  c.company_name,
-  c.industry,
-  o.order_id,
-  o.order_date,
-  o.total as order_total,
-  p.product_name,
-  p.category,
-  p.current_price as catalog_price,
-  -- Compute margin
-  (o.total - (oi.quantity * p.cost_price)) as margin
-FROM postgresql.crm.customers c
-JOIN iceberg.warehouse.orders o ON c.customer_id = o.customer_id
-JOIN iceberg.warehouse.order_items oi ON o.order_id = oi.order_id
-LEFT JOIN redis.cache.products p ON oi.product_id = p.product_id
-WHERE o.order_date > CURRENT_DATE - INTERVAL '90' DAYS;
+  CAST(user_id AS BIGINT) as user_id,
+  CAST(email AS VARCHAR) as email,
+  CAST(first_name AS VARCHAR) as first_name,
+  CAST(last_name AS VARCHAR) as last_name,
+  CAST(address AS VARCHAR) as address,
+  CAST(city AS VARCHAR) as city,
+  CAST(state AS VARCHAR) as state,
+  CAST(zip AS VARCHAR) as zip
+FROM postgresql.app.users_v1;
 
--- Application queries one view, Trino handles federation
-SELECT * FROM myapp.analytics.order_summary 
-WHERE industry = 'manufacturing'
-  AND margin > 1000;
+-- V2 schema: Normalized into users + addresses tables
+-- Keep backward compatibility during migration
+CREATE OR REPLACE VIEW myapp.users AS
+SELECT 
+  CAST(u.user_id AS BIGINT) as user_id,
+  CAST(u.email AS VARCHAR) as email,
+  CAST(u.first_name AS VARCHAR) as first_name,
+  CAST(u.last_name AS VARCHAR) as last_name,
+  CAST(a.street AS VARCHAR) as address,
+  CAST(a.city AS VARCHAR) as city,
+  CAST(a.state AS VARCHAR) as state,
+  CAST(a.zip AS VARCHAR) as zip
+FROM postgresql.app.users_v2 u
+LEFT JOIN postgresql.app.addresses_v2 a 
+  ON u.user_id = a.user_id 
+  AND a.is_primary = true;
+
+-- V3 schema: Changed email validation, need to handle legacy bad data
+CREATE OR REPLACE VIEW myapp.users AS
+SELECT 
+  CAST(u.user_id AS BIGINT) as user_id,
+  CAST(
+    CASE 
+      WHEN u.email LIKE '%@%' THEN u.email
+      ELSE u.legacy_email  -- Fallback for pre-validation data
+    END AS VARCHAR
+  ) as email,
+  CAST(u.first_name AS VARCHAR) as first_name,
+  CAST(u.last_name AS VARCHAR) as last_name,
+  CAST(a.street AS VARCHAR) as address,
+  CAST(a.city AS VARCHAR) as city,
+  CAST(a.state AS VARCHAR) as state,
+  CAST(a.zip AS VARCHAR) as zip
+FROM postgresql.app.users_v3 u
+LEFT JOIN postgresql.app.addresses_v3 a
+  ON u.user_id = a.user_id
+  AND a.is_primary = true;
 ```
+
+**Important**: When updating multiple layers in a hierarchy, always replace bottom-up to avoid temporary inconsistencies:
+
+```sql
+-- Replace base layer first
+CREATE OR REPLACE VIEW myapp.internal.users_base AS ...;
+
+-- Then middle layer
+CREATE OR REPLACE VIEW myapp.internal.users_enriched AS ...;
+
+-- Finally top layer
+CREATE OR REPLACE VIEW myapp.users AS ...;
+```
+
+This ensures dependent views always have valid sources to query from during replacement.
 
 **Benefits**:
-- Hide federation complexity from application
-- Single SQL query across multiple sources
-- No manual ETL or data duplication
-- Change underlying sources without application changes
-- Leverage Trino's query optimization across connectors
+- Evolve schemas without application deployments
+- Support gradual migrations with parallel systems
+- Maintain backward compatibility during transitions
+- Hide physical schema complexity from applications
 
 ---
 
-### Additional Use Cases
+### Use Case 4: Isolating Per-Feature Storage
 
-**Feature Flagging Data Sources**:
-- Programmatically enable/disable data sources via view replacement
-- Gradually roll out new connectors to subset of users
-- A/B test different storage backends for performance comparison
+**The Challenge**: Microservices or modular monoliths where multiple teams need independent control over their data views without coordinating with other teams.
 
-**Gradual Connector Migration**:
-- Move from MySQL to PostgreSQL table by table
-- UNION old and new sources during transition period
-- Eventually remove old source when migration complete
+**The Virtual View Solution**:
 
-**Cost Optimization**:
-- Route expensive analytical queries to cheaper cold storage
-- Tier data by access patterns (hot/warm/cold)
-- Implement intelligent caching layers
-
-**Development Environment Isolation**:
-- Each developer gets own catalog with custom view definitions
-- Test schema changes without affecting team
-- Merge view definitions like code via pull requests
-
----
-
-## Practical Patterns: Common Hierarchy Designs
-
-### Pattern 1: The Three-Layer Stack
-
-**When to use**: Most production applications with multiple concerns (business logic, privacy, storage).
-
-**Structure**:
-1. **Entry Layer**: Application-facing view, computed columns, version mapping
-2. **Filter Layer**: Privacy, security, tenant isolation, compliance
-3. **Merge Layer**: Physical source merging, replication management
-
-**Ownership**:
-- Entry → Application team (updates during feature releases)
-- Filter → Compliance/Security team (updates when policies change)
-- Merge → Data Engineering/Platform team (updates during migrations)
-
-**Complete example**:
-```sql
--- Layer 1: Entry point (owned by application team)
--- Updated during feature releases
-CREATE VIEW myapp.api.logs AS
-SELECT 
-  log_id,
-  event_type,
-  event_time,
-  user_id,
-  -- Computed fields
-  date_trunc('hour', event_time) as event_hour,
-  CASE 
-    WHEN event_type IN ('error', 'fatal') THEN true 
-    ELSE false 
-  END as is_critical
-FROM myapp.internal.logs_filtered;
-
--- Layer 2: Privacy filter (owned by compliance system)
--- Updated when privacy policies change
-CREATE VIEW myapp.internal.logs_filtered AS
-SELECT log_id, event_type, event_time, user_id
-FROM myapp.internal.logs_merged
-WHERE 
-  -- Tenant isolation
-  tenant_id = current_tenant_id()
-  -- Right to be forgotten
-  AND user_id NOT IN (
-    SELECT user_id FROM myapp.internal.deleted_users
-  )
-  -- Data retention policy (2 years)
-  AND event_time > CURRENT_DATE - INTERVAL '2' YEAR;
-
--- Layer 3: Source merger (owned by ingestion engine)
--- Updated during storage migrations
-CREATE VIEW myapp.internal.logs_merged AS
--- Hot data in PostgreSQL
-SELECT log_id, event_type, event_time, user_id, tenant_id
-FROM postgresql.logs.events
-WHERE replicated = false
-  AND event_time > CURRENT_DATE - INTERVAL '90' DAYS
-UNION ALL
--- Cold data in Iceberg
-SELECT log_id, event_type, event_time, user_id, tenant_id
-FROM iceberg.archive.logs
-WHERE event_time <= CURRENT_DATE - INTERVAL '90' DAYS;
-```
-
-**Mermaid diagram**:
-```mermaid
-flowchart TD
-    App[Application Code] --> Entry[myapp.api.logs<br/>Entry Layer<br/>Owner: App Team<br/>Computed columns, versioning]
-    Entry --> Filter[myapp.internal.logs_filtered<br/>Filter Layer<br/>Owner: Compliance<br/>Privacy, retention, isolation]
-    Filter --> Merge[myapp.internal.logs_merged<br/>Merge Layer<br/>Owner: Data Eng<br/>Storage federation]
-    Merge --> PG[(PostgreSQL<br/>Hot Storage<br/>90 days)]
-    Merge --> Ice[(Iceberg<br/>Cold Storage<br/>> 90 days)]
-    
-    style Entry fill:#e1f5ff
-    style Filter fill:#ffe1e1
-    style Merge fill:#e1ffe1
-```
-
----
-
-### Pattern 2: The Prototyping Progression
-
-**When to use**: New features, MVP development, uncertain requirements.
-
-**Structure**: Same view name, evolved definitions over time.
-
-**Stages**:
-1. **Static VALUES**: UI and business logic development
-2. **Test database**: Integration testing
-3. **Staging database**: Beta testing with real-like data
-4. **Production database**: Live traffic
-5. **Hybrid (optional)**: Add Iceberg for scale
-
-**Timeline example**:
-```sql
--- Week 1: Static data, no infrastructure
-CREATE VIEW analytics.user_cohorts AS
-SELECT cohort_name, user_count, retention_rate
-FROM (VALUES
-  ('2024-01', 1000, 0.45),
-  ('2024-02', 1200, 0.52),
-  ('2024-03', 1350, 0.48)
-) AS t (cohort_name, user_count, retention_rate);
-
--- Week 3: Development database ready
-CREATE OR REPLACE VIEW analytics.user_cohorts AS
-SELECT 
-  date_trunc('month', signup_date) as cohort_name,
-  COUNT(DISTINCT user_id) as user_count,
-  COUNT(DISTINCT CASE 
-    WHEN last_seen > CURRENT_DATE - INTERVAL '30' DAYS 
-    THEN user_id 
-  END)::DOUBLE / COUNT(DISTINCT user_id) as retention_rate
-FROM postgresql.dev.users
-GROUP BY date_trunc('month', signup_date);
-
--- Week 8: Production launch
-CREATE OR REPLACE VIEW analytics.user_cohorts AS
-SELECT 
-  date_trunc('month', signup_date) as cohort_name,
-  COUNT(DISTINCT user_id) as user_count,
-  COUNT(DISTINCT CASE 
-    WHEN last_seen > CURRENT_DATE - INTERVAL '30' DAYS 
-    THEN user_id 
-  END)::DOUBLE / COUNT(DISTINCT user_id) as retention_rate
-FROM postgresql.prod.users
-WHERE signup_date > CURRENT_DATE - INTERVAL '2' YEAR
-GROUP BY date_trunc('month', signup_date);
-```
-
-**Gantt diagram**:
-```mermaid
-gantt
-    title View Definition Evolution
-    dateFormat YYYY-MM-DD
-    section View: analytics.user_cohorts
-    Static VALUES       :a1, 2024-01-01, 14d
-    Dev Database        :a2, 2024-01-15, 35d
-    Staging Database    :a3, 2024-02-20, 14d
-    Prod Database       :a4, 2024-03-05, 2024-12-31
-    section Application Code
-    Unchanged           :2024-01-01, 2024-12-31
-```
-
----
-
-### Pattern 3: Per-Feature Hierarchies
-
-**When to use**: Microservices, modular monoliths, team independence.
-
-**Structure**: Multiple independent hierarchies, one per feature or service.
+Create separate, independent view hierarchies for each feature or service. Teams can develop, test, and deploy their views independently.
 
 **Example**:
 ```sql
@@ -1304,49 +938,56 @@ CREATE VIEW ecommerce.analytics.sales_summary AS ...;
 CREATE VIEW ecommerce.analytics.inventory_turnover AS ...;
 ```
 
-**Benefits**:
-- Teams work independently
-- Clear ownership boundaries
-- No coordination needed for most changes
-- Easy to understand scope and blast radius
-- Feature can be developed, tested, deployed independently
-
-**Mermaid diagram**:
+**Architecture visualization**:
 ```mermaid
 flowchart LR
     subgraph Feature1[Order Processing Team]
         O1[orders.current] --> O2[orders.internal.merged]
         O2 --> DB1[(PostgreSQL)]
     end
-    
+
     subgraph Feature2[Inventory Team]
         I1[inventory.available] --> I2[inventory.internal.merged]
         I2 --> DB2[(Redis Cache)]
     end
-    
+
     subgraph Feature3[Analytics Team]
         A1[analytics.sales] --> O1
         A1 --> I1
     end
-    
+
     style Feature1 fill:#e1f5ff
     style Feature2 fill:#ffe1e1
     style Feature3 fill:#e1ffe1
 ```
 
+**Benefits**:
+- Teams work independently without coordination
+- Clear ownership boundaries per feature
+- Easy to understand scope and blast radius of changes
+- Features can be developed, tested, and deployed independently
+- Reduces cross-team dependencies and bottlenecks
+
+**Development Environment Isolation**:
+- Each developer gets own catalog with custom view definitions
+- Test schema changes without affecting team
+- Merge view definitions like code via pull requests
+
 ---
 
-### Pattern 4: Runtime Configuration Switching
+### Use Case 5: Runtime Configuration Switching
 
-**When to use**: Feature flags, A/B testing, debugging, environment-specific behavior.
+**The Challenge**: Need to dynamically switch between different data sources based on feature flags, environment, or runtime configuration without redeploying application code.
 
-**Structure**: Programmatically swap view definitions based on runtime configuration.
+**The Virtual View Solution**:
 
-**Example** (pseudocode):
+Programmatically swap view definitions based on configuration, enabling A/B testing, gradual rollouts, and environment-specific behavior.
+
+**Example with programmatic switching**:
 ```python
 def configure_data_layer(config):
     """Update view definitions based on current configuration"""
-    
+
     if config.feature_flags.get('use_iceberg'):
         # Production with Iceberg
         execute_sql("""
@@ -1363,7 +1004,7 @@ def configure_data_layer(config):
         # Static test data
         execute_sql("""
             CREATE OR REPLACE VIEW myapp.data.events AS
-            SELECT * FROM (VALUES 
+            SELECT * FROM (VALUES
               (1, 'test', CURRENT_TIMESTAMP)
             ) AS t (id, event, ts)
         """)
@@ -1378,7 +1019,7 @@ def configure_data_layer(config):
 configure_data_layer(current_config)
 ```
 
-**Git-based configuration with ViewZoo**:
+**Git-based switching with ViewZoo**:
 ```bash
 # Feature flag: Enable Iceberg backend
 git checkout feature/iceberg-storage
@@ -1392,11 +1033,213 @@ git checkout feature/iceberg-storage
 ```
 
 **Use cases**:
-- Feature flags for gradual rollout
-- Environment-specific data sources (dev/staging/prod)
+- Feature flags for gradual rollout of new data sources
+- Environment-specific configurations (dev/staging/prod)
 - Debug mode with synthetic data
 - A/B testing different storage backends for performance
 - Per-customer configurations in multi-tenant systems
+
+**Benefits**:
+- Zero code deployment for configuration changes
+- Safe experimentation with new data sources
+- Easy rollback via configuration or git branch
+- Support multiple environments from single codebase
+
+**Feature Flagging Data Sources**:
+- Programmatically enable/disable data sources via view replacement
+- Gradually roll out new connectors to subset of users
+- A/B test different storage backends for performance comparison
+
+**Gradual Connector Migration**:
+- Move from MySQL to PostgreSQL table by table
+- UNION old and new sources during transition period
+- Eventually remove old source when migration complete
+---
+
+### Use Case 6: Ensuring Privacy and Compliance
+
+**The Challenge**: Implement system-wide privacy rules, data redaction, or tenant isolation without modifying every query.
+
+**Simple example**:
+```sql
+-- Base data view (internal only)
+CREATE VIEW myapp.internal.logs_raw AS
+SELECT 
+  log_id, event_type, user_id, 
+  user_email, ip_address, event_time
+FROM postgresql.logs;
+
+-- Privacy layer: Redact PII for most users
+CREATE VIEW myapp.logs AS
+SELECT 
+  log_id,
+  event_type,
+  user_id,
+  -- Redact email and IP unless admin
+  CASE WHEN is_admin() THEN user_email ELSE 'REDACTED' END as user_email,
+  CASE WHEN is_admin() THEN ip_address ELSE 'REDACTED' END as ip_address,
+  event_time
+FROM myapp.internal.logs_raw;
+```
+
+**Realistic example with tenant isolation**:
+```sql
+-- Multi-tenant application
+-- Each customer should only see their own data
+
+-- Base data (all tenants mixed)
+CREATE VIEW myapp.internal.orders_all AS
+SELECT 
+  order_id, tenant_id, customer_id, 
+  order_total, order_date, payment_method
+FROM postgresql.orders;
+
+-- Tenant-isolated view (automatic filtering)
+CREATE VIEW myapp.orders AS
+SELECT 
+  order_id, customer_id, order_total, 
+  order_date, payment_method
+FROM myapp.internal.orders_all
+WHERE tenant_id = current_tenant_id()
+   OR is_superuser();
+
+-- Right-to-be-forgotten implementation
+CREATE VIEW myapp.internal.customers_active AS
+SELECT 
+  customer_id, email, name, address, phone
+FROM postgresql.customers
+WHERE deleted_at IS NULL
+  AND customer_id NOT IN (
+    SELECT customer_id 
+    FROM postgresql.deletion_requests 
+    WHERE status = 'approved'
+  );
+
+-- Application view with both privacy and tenant isolation
+CREATE VIEW myapp.customers AS
+SELECT 
+  customer_id, 
+  email, 
+  name, 
+  -- Redact address for non-privileged users
+  CASE 
+    WHEN is_privileged_user() THEN address 
+    ELSE 'REDACTED' 
+  END as address,
+  phone
+FROM myapp.internal.customers_active
+WHERE tenant_id = current_tenant_id();
+```
+
+**Benefits**:
+- Single point of control for privacy rules
+- Enforce compliance without trusting application code
+- Easy to audit (one view to review, not hundreds of queries)
+- Update privacy rules without application deployment
+
+```mermaid
+flowchart TD
+    App[Application Query] --> Privacy[Privacy Layer<br/>myapp.customers]
+    Privacy --> Isolation[Tenant Isolation<br/>myapp.internal.customers_active]
+    Isolation --> Physical[(Physical Table<br/>postgresql.customers)]
+    
+    Privacy -->|Redacts PII| App
+    Isolation -->|Filters by tenant| Privacy
+    
+    style Privacy fill:#ffe1e1
+    style Isolation fill:#ffe1e1
+```
+
+---
+
+### Use Case 7: Extending Applications to Iceberg
+
+**The Challenge**:
+
+Existing application runs on PostgreSQL (or MySQL, etc.). Want to add Iceberg for cost-effective long-term storage, but can't rewrite application code. Need seamless transition, no downtime, no dual codebases.
+
+**The Virtual View Solution**:
+
+**Phase 1: Establish the abstraction**
+
+Before:
+```sql
+-- Application queries physical table directly
+SELECT * FROM postgresql.myapp.logs WHERE event_time > ?
+```
+
+After:
+```sql
+-- Create virtual view as intermediary
+CREATE VIEW myapp.data.logs AS
+SELECT 
+  CAST(id AS BIGINT) as log_id,
+  CAST(event AS VARCHAR) as event_type,
+  CAST(timestamp AS TIMESTAMP(3)) as event_time,
+  CAST(user_id AS BIGINT) as user_id
+FROM postgresql.myapp.logs;
+
+-- Application code changes once (connection string only)
+-- Now queries: SELECT * FROM myapp.data.logs WHERE event_time > ?
+```
+
+**Phase 2: Add Iceberg in hybrid mode**
+
+```sql
+-- Union PostgreSQL (hot, recent data) with Iceberg (cold, historical)
+CREATE OR REPLACE VIEW myapp.data.logs AS
+-- Recent data still in PostgreSQL
+SELECT log_id, event_type, event_time, user_id
+FROM postgresql.myapp.logs
+WHERE event_time > CURRENT_DATE - INTERVAL '30' DAYS
+  AND replicated = false
+UNION ALL
+-- Historical data in Iceberg
+SELECT log_id, event_type, event_time, user_id
+FROM iceberg.archive.logs
+WHERE event_time <= CURRENT_DATE - INTERVAL '30' DAYS;
+```
+
+Zero application changes. Behind the scenes, a replication job moves old data from PostgreSQL to Iceberg and marks rows as replicated.
+
+**Phase 3: Eventually migrate entirely (optional)**
+
+```sql
+-- Once all data is in Iceberg and PostgreSQL is ready to decommission
+CREATE OR REPLACE VIEW myapp.data.logs AS
+SELECT log_id, event_type, event_time, user_id
+FROM iceberg.warehouse.logs;
+```
+
+**What we're NOT covering**: How replication works, Iceberg table maintenance, partition strategies, compaction. This manifesto focuses on the view architecture that enables migration.
+
+**Benefits**:
+- Zero application downtime during migration
+- No "big bang" rewrite risk
+- Test Iceberg integration incrementally
+- Rollback is trivial (replace view definition)
+- Works with monoliths and microservices
+
+```mermaid
+gantt
+    title Iceberg Migration Timeline
+    dateFormat YYYY-MM-DD
+    section Application Code
+    SELECT * FROM myapp.data.logs :2024-01-01, 2024-12-31
+    section View Implementation
+    PostgreSQL Only       :a1, 2024-01-01, 90d
+    PG + Iceberg Hybrid   :a2, 2024-04-01, 120d
+    Iceberg Only          :a3, 2024-08-01, 2024-12-31
+```
+
+---
+
+### Use Case 8: Cost and Availability Routing
+
+**Cost Optimization**: --> Query Routing for Cost Reduction or Outages
+- Route expensive analytical queries to cheaper cold storage
+- Tier data by access patterns (hot/warm/cold)
+- Implement intelligent caching layers
 
 ---
 
@@ -1570,84 +1413,17 @@ git commit -m "Add view dependency visualization"
 
 ---
 
-## View Lifecycle Management
+## Common Pitfalls and Solutions
 
-### Creating Views
-
-```sql
-CREATE VIEW myapp.data.events AS
-SELECT 
-  CAST(1 AS BIGINT) as event_id,
-  CAST('startup' AS VARCHAR) as event_type,
-  CAST(CURRENT_TIMESTAMP AS TIMESTAMP(3)) as event_time;
-```
-
-### Replacing Views (Zero Downtime)
-
-```sql
-CREATE OR REPLACE VIEW myapp.data.events AS
-SELECT 
-  CAST(id AS BIGINT) as event_id,
-  CAST(type AS VARCHAR) as event_type,
-  CAST(timestamp AS TIMESTAMP(3)) as event_time
-FROM postgresql.events;
-```
-
-**Important notes**:
-- No query locks needed
-- No transaction coordination required
-- Running queries use old definition until they create new query plan
-- New queries use new definition immediately
-- No way to lock a view during replacement
-
-**Caution**: No atomic multi-view updates. If replacing multiple views in a hierarchy, replace bottom-up to avoid temporary inconsistencies.
-
-**Example bottom-up replacement**:
-```sql
--- Replace base layer first
-CREATE OR REPLACE VIEW myapp.internal.events_base AS ...;
-
--- Then middle layer
-CREATE OR REPLACE VIEW myapp.internal.events_filtered AS ...;
-
--- Finally top layer
-CREATE OR REPLACE VIEW myapp.events AS ...;
-```
-
-### Dropping Views
-
-```sql
--- Remove dependent views first (top-down)
-DROP VIEW IF EXISTS myapp.data.events_summary;
-DROP VIEW IF EXISTS myapp.internal.events_filtered;
-DROP VIEW IF EXISTS myapp.data.events;
-```
-
-Trino prevents dropping views that have dependents, so work top-down when removing hierarchies.
-
-### Exporting Definitions
-
-```sql
--- Export for backup or migration
-SHOW CREATE VIEW myapp.data.events;
-
--- Returns the CREATE VIEW statement
--- Save to version control
-```
-
-**Git-based backup with ViewZoo**:
-```bash
-# View definitions already in git
-# Backup is automatic via git history
-git log -- myapp/data/events.json
-
-# Restore previous version
-git checkout <commit-hash> -- myapp/data/events.json
-```
+1. [Type Mismatch Chaos](#pitfall-1-type-mismatch-chaos)
+2. [Forgetting to Update Dependent Layers](#pitfall-2-forgetting-to-update-dependent-layers)
+3. [Breaking Application Assumptions](#pitfall-3-breaking-application-assumptions)
+4. [Permission Confusion](#pitfall-4-permission-confusion)
+5. [Attempting to Delete Base Views](#pitfall-5-attempting-to-delete-base-views)
+6. [Lost View Definitions](#pitfall-6-lost-view-definitions)
+7. [Circular Dependencies](#pitfall-7-circular-dependencies)
 
 ---
-
-## Common Pitfalls and Solutions
 
 ### Pitfall 1: Type Mismatch Chaos
 
@@ -1747,11 +1523,37 @@ SELECT * FROM myapp.users;  -- Fails with permission error
 - Document permission requirements clearly in view comments
 
 ```sql
-COMMENT ON VIEW myapp.users IS 
+COMMENT ON VIEW myapp.users IS
 'Requires SELECT permission on postgresql.users table';
 ```
 
-### Pitfall 5: Lost View Definitions
+### Pitfall 5: Attempting to Delete Base Views
+
+**Problem**: Attempting to drop a base view before its dependents.
+
+**Example**:
+```sql
+-- Try to drop base view first
+DROP VIEW myapp.internal.events_base;
+-- Error: Cannot drop view 'events_base': depended upon by view 'events_filtered'
+
+-- Dependent views still reference it
+CREATE VIEW myapp.events AS SELECT * FROM myapp.internal.events_filtered;
+CREATE VIEW myapp.internal.events_filtered AS SELECT * FROM myapp.internal.events_base;
+```
+
+**Solution**: Trino prevents dropping views with dependents. Always drop top-down (dependents first, then base):
+
+```sql
+-- Remove dependent views first (top-down)
+DROP VIEW IF EXISTS myapp.events;
+DROP VIEW IF EXISTS myapp.internal.events_filtered;
+DROP VIEW IF EXISTS myapp.internal.events_base;
+```
+
+Use `DROP VIEW IF EXISTS` for safety in scripts. Use ViewMapper to identify all dependents before dropping views.
+
+### Pitfall 6: Lost View Definitions
 
 **Problem**: Views stored in connector that gets decommissioned or isn't working properly at runtime.
 
@@ -1769,7 +1571,7 @@ CREATE VIEW postgresql_test.myapp.users AS ...
 - Alternatively export view definitions to version control
 - Use `SHOW CREATE VIEW` to inspect definitions
 
-### Pitfall 6: Circular Dependencies
+### Pitfall 7: Circular Dependencies
 
 **Problem**: View A → View B → View A
 
@@ -1787,6 +1589,13 @@ CREATE VIEW b AS SELECT * FROM a;
 The previous section covered mistakes to avoid when using virtual views. This section is different. It identifies scenarios where the virtual view pattern itself may not be the right architectural choice.
 
 These aren't failures of implementation, they're legitimate decisions to skip the abstraction entirely. Virtual views solve specific problems, and when those problems don't exist, the overhead isn't justified. Recognizing these boundaries separates pragmatic thinking from cargo-cult architecture.
+
+Virtual views are typically contraindicated for:
+1. [Single-Layer Hierarchies](#anti-pattern-1-single-layer-hierarchies)
+2. [Performance-Critical Hot Paths](#anti-pattern-2-performance-critical-hot-paths)
+3. [Ad-Hoc Analytics and Exploration](#anti-pattern-3-ad-hoc-analytics-and-exploration)
+
+---
 
 ### Anti-Pattern 1: Single-Layer Hierarchies
 
@@ -2185,5 +1994,5 @@ To the extent possible under law, the author has waived all copyright and relate
 
 ---
 
-**Version**: 0.4
-**Last Updated**: 2025-12-15
+**Version**: 0.5
+**Last Updated**: 2025-12-16

@@ -2,9 +2,9 @@
 
 **Project**: The Virtual View Manifesto
 **Author**: Rob Dickinson (robfromboulder)
-**Current Version**: 0.4
+**Current Version**: 0.5
 **Last Updated**: 2025-12-16
-**Document Length**: ~2189 lines / ~9,600 words
+**Document Length**: ~1998 lines / ~9,200 words
 
 ---
 
@@ -21,18 +21,16 @@ This is a technical manifesto about virtual view hierarchies in SQL databases, w
 ## 📐 Document Structure Quick Reference
 
 The README is organized in these major sections:
-1. **Introduction** (lines 48-153): Problem statement, classical vs virtual views
-2. **Eight Principles** (lines 154-602): Core architectural principles with examples
-3. **Use Cases** (lines 603-1137): Six practical scenarios when to use virtual views
-4. **Practical Patterns** (lines 1138-1402): Four common hierarchy designs
-5. **Implementation Guide** (lines 1403-1572): Step-by-step getting started
-6. **View Lifecycle Management** (lines 1573-1649): Creating, replacing, dropping views
-7. **Common Pitfalls** (lines 1650-1784): Six mistakes and solutions
-8. **When NOT to Use** (lines 1785-1909): Three anti-patterns
-9. **Related Tools** (lines 1910-1946): ViewMapper and ViewZoo documentation
-10. **Glossary** (lines 1947-1972): Technical term definitions
-11. **Appendix** (lines 1973-2167): Complete end-to-end example
-12. **Footer** (lines 2168-2189): License, thanks, metadata
+1. **Introduction** (lines 46-150): Problem statement, classical vs virtual views
+2. **Principles** (lines 152-599): Core architectural principles with examples
+3. **Use Cases** (lines 601-1244): Eight practical scenarios (note: Use Case 8 is stub for future completion)
+4. **Implementation Guide** (lines 1246-1413): Step-by-step getting started
+5. **Common Pitfalls** (lines 1415-1585): Seven mistakes and solutions
+6. **When NOT to Use** (lines 1587-1717): Three anti-patterns
+7. **Related Tools** (lines 1719-1753): ViewMapper and ViewZoo documentation
+8. **Glossary** (lines 1755-1778): Technical term definitions
+9. **Appendix** (lines 1780-1974): Complete end-to-end example
+10. **Footer** (lines 1976-1998): License, thanks, metadata
 
 ---
 
@@ -251,7 +249,7 @@ For each major principle or use case:
 
 ## 📝 Current Status
 
-**Version**: 0.4 (Draft)
+**Version**: 0.5 (Draft)
 **Status**: Work in progress, streamlined for initial peer review
 **Next Milestone**: 1.0 release after incorporating feedback
 **Entire document is open for review**
@@ -287,6 +285,21 @@ When you ask Claude to work on this project, you can use these shortcuts:
 ---
 
 ## 🔄 Change Log
+
+### 2025-12-16 (version 0.5)
+- **Major restructuring**: Eliminated "Practical Patterns" and "View Lifecycle Management" sections
+- Merged Pattern 2 (Prototyping Progression) into Use Case 1 with Gantt timeline diagram
+- Created Use Case 4 from Pattern 3 (Per-Feature Hierarchies / Isolating Per-Feature Storage)
+- Created Use Case 5 from Pattern 4 (Runtime Configuration Switching)
+- Removed Pattern 1 (Three-Layer Stack) as redundant with other content
+- Moved bottom-up replacement guidance from View Lifecycle to Use Case 3
+- Moved view deletion guidance to new Pitfall 5 (Attempting to Delete Base Views)
+- Reordered use cases for pedagogical flow: prototyping → testing → schema evolution → feature isolation → runtime config → privacy → Iceberg → cost routing
+- Renamed Use Case 6 from "Enforcing Privacy and Compliance Controls" to "Ensuring Privacy and Compliance"
+- Added link tables (numbered lists with anchors) to Common Pitfalls and When NOT to Use sections for easier navigation
+- Use Case 8 (Cost and Availability Routing) left as stub for future completion
+- Document reduced from 2189 to 1998 lines, ~9,200 words
+- Net change: 191 lines reduced
 
 ### 2025-12-16 (version 0.4)
 - Reordered Common Pitfalls by decreasing impact and frequency (Type Mismatch → Forgetting Dependents → Breaking Assumptions → Permissions → Lost Definitions → Circular Dependencies)
