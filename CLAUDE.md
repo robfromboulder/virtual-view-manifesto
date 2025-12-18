@@ -166,6 +166,59 @@ This ensures future Claude sessions have the most current context.
 - **Use black-and-white only** - No custom colors or fills for readability in both light and dark modes
 - **Use quotes for labels even when not strictly required** - use `Tables[("Physical Tables")]`, not `Tables[(Physical Tables)]`
 
+### Example Naming Conventions
+
+**CRITICAL**: All SQL examples must follow the three-level naming convention consistently throughout the document.
+
+**Physical tables** (connector.schema.table):
+- ✅ `postgresql.myapp.users`
+- ✅ `postgresql.myapp.orders`
+- ✅ `iceberg.myapp.events`
+- ❌ `postgresql.users` (missing schema)
+- ❌ `postgresql.app.users` (should be `myapp` to match catalog)
+
+**Virtual views** (catalog.schema.view):
+- ✅ `myapp.users.all`
+- ✅ `myapp.orders.pending`
+- ✅ `myapp.events.base`
+- ❌ `myapp.users` (missing view name, only two levels)
+- ❌ `myapp.all_users` (use feature schema: `users.all`)
+
+**Schema → Catalog transformation pattern**:
+The examples should reinforce that the physical schema name becomes the catalog name:
+- **Before (physical)**: `postgresql.myapp.users` - `myapp` is a schema in PostgreSQL
+- **After (virtual)**: `myapp.users.all` - `myapp` is promoted to a catalog, `users` is a feature schema
+
+**Feature-based organization**:
+- Second level (schema) should represent features or domains
+- Common patterns: `myapp.users.*`, `myapp.orders.*`, `myapp.events.*`, `myapp.products.*`
+- Avoid generic names like `myapp.data.*` in examples unless specifically showing generic setup
+
+**View naming patterns**:
+- `.all` - Common entry point (e.g., `myapp.users.all`)
+- `.base` - Base layer in hierarchy
+- `.merged` - Merge layer combining sources
+- `.filtered` - Privacy/filtering layer
+- `.enriched` - Transformation layer
+
+**Internal schemas**:
+- Use `myapp.internal.*` for multi-layer hierarchies when demonstrating layer separation
+- Keep simple examples within feature schemas (e.g., `myapp.users.base` rather than `myapp.internal.users_base`)
+
+**Consistency across document sections**:
+- All Principles examples must follow these conventions
+- All Use Cases examples must follow these conventions
+- All Implementation Guide examples must follow these conventions
+- All Pitfall examples must follow these conventions
+- Mermaid diagrams must use fully qualified names (three levels)
+
+**Why this matters**:
+- Teaches the transformation pattern: schema → catalog
+- Makes the abstraction crystal clear
+- Shows readers exactly how to structure their own implementations
+- Every example reinforces the same mental model
+- Readers learn by repetition and consistency
+
 ---
 
 ## 🔍 Content Guidelines
