@@ -5,7 +5,7 @@ Classical SQL views are boring schema decoration for hiding joins, adding comput
 
 Virtual view hierarchies can be implemented using Trino, Starburst Enterprise or Galaxy, Amazon Athena, Presto, and most databases that support SQL views (including Postgresql and MySQL). Trino is used for all examples here.
 
-This manifesto isn't just theory, it provides practical strategies and examples to follow when introducing virtual views into your architecture, and links to free tools to discover and manage view hierarchies with Trino.  
+This manifesto isn't just theory, it provides practical strategies and examples to follow when introducing virtual views into your architecture, and links to free tools to discover and manage view hierarchies with Trino.
 
 > [!CAUTION]
 > This is a work in progress and is neither complete nor peer reviewed.
@@ -52,8 +52,8 @@ With these classical use cases, views are just icing on your physical schema to 
 
 ```mermaid
 flowchart TD
-    App[Application] --> Tables[("Physical Tables")]
-    App -.-> Views["SQL Views<br/>(Optional)"]
+    App["Application<br/>(myapp)"] --> Tables[("Physical Tables<br/>(postgresql.myapp.*)")]
+    App -.-> Views["SQL Views<br/>(optional)"]
     Views --> Tables
 ```
 
@@ -61,8 +61,8 @@ flowchart TD
 ```sql
 CREATE VIEW customer_orders AS 
 SELECT c.name, c.email, o.order_id, o.total, o.order_date
-FROM customers c 
-JOIN orders o ON c.customer_id = o.customer_id;
+FROM postgresql.myapp.customers c 
+JOIN postgresql.myapp.orders o ON c.customer_id = o.customer_id;
 ```
 
 **Example of adding computed columns**:
@@ -74,7 +74,7 @@ SELECT
   last_name,
   first_name || ' ' || last_name as full_name,
   YEAR(CURRENT_DATE) - YEAR(birth_date) as age
-FROM users;
+FROM postgresql.myapp.users;
 ```
 
 **Example of redacting sensitive data**:
@@ -82,7 +82,7 @@ FROM users;
 -- Omit SSN column, filter to current user's data
 CREATE VIEW my_profile AS
 SELECT user_id, name, email, phone
-FROM users
+FROM postgresql.myapp.users
 WHERE user_id = CURRENT_USER_ID();
 ```
 
@@ -93,7 +93,7 @@ SELECT
   date_trunc('day', order_date) as day,
   SUM(total) as revenue,
   COUNT(*) as order_count
-FROM orders
+FROM postgresql.myapp.orders
 GROUP BY date_trunc('day', order_date);
 ```
 
@@ -111,18 +111,18 @@ Because of this tight coupling by default:
 **Example of the problem**:
 ```sql
 -- Application queries PostgreSQL directly
-SELECT * FROM postgresql.app_schema.users;
+SELECT * FROM postgresql.myapp.customers;
 
 -- Want to move to Iceberg? Change application code like this...
-SELECT * FROM iceberg.app_schema.users;
+SELECT * FROM iceberg.myapp.customers;
 
 -- Have data in both? Application must again handle the complexity like this...
-SELECT * FROM postgresql.app_schema.users WHERE active = true
+SELECT * FROM postgresql.myapp.customers WHERE active = true
 UNION ALL
-SELECT * FROM iceberg.app_schema.users WHERE active = false;
+SELECT * FROM iceberg.myapp.customers WHERE active = false;
 ```
 
-As good architects, we can hope to isolate these queries in the data access layers of our applications, but every storage change still has to ripple through any code that directly references the database. This makes evolution and migrations painful and time consuming. 
+As good architects, we can hope to isolate these queries in the data access layers of our applications, but every storage change still has to ripple through any code that directly references the database. This makes evolution and migrations painful and time consuming.
 
 ### The Virtual View Approach
 
@@ -130,14 +130,14 @@ Unlike physical tables and traditional views, virtual views are organized by app
 
 Virtual views are always:
 - **Application-first** - Named by application domain or feature, not storage technology
-- **Detached from physical schemas** - Views are used for most application queries, not physical tables  
+- **Detached from physical schemas** - Views are used for most application queries, not physical tables
 - **Layered into hierarchies** - Views depend on other views, creating swappable layers
 - **Independently replaceable** - Each layer can be swapped without affecting others
 - **Multi-connector capable** - Each layer can use one or more (real or fake) data sources
 
 ```mermaid
 flowchart TD
-    App["Application<br/>(myapp)"] --> AppCatalog["Application Catalog<br/>(myapp.data.*)"]
+    App["Application<br/>(myapp)"] --> AppCatalog["Application Catalog<br/>(myapp.[feature_name].[view_name])"]
     AppCatalog --> Views["Application View<br/>Hierarchy"]
     Views -.-> PG[("PostgreSQL<br/>(warm storage)")]
     Views -.-> Ice[("Iceberg<br/>(cold storage)")]
@@ -169,13 +169,14 @@ flowchart TD
 
 **Simple example**:
 ```sql
--- Bad: Organized by storage technology
-CREATE VIEW postgres_mirror.public.user_data AS 
-SELECT * FROM postgresql.public.users;
+-- Bad: View stored in physical schema
+CREATE VIEW postgresql.myapp.active_customers AS ... 
 
--- Good: Organized by application domain
-CREATE VIEW myapp.users.profile AS
-SELECT user_id, name, email FROM postgresql.public.users;
+-- Bad: Separate catalog for views, but still mirrors physical schema
+CREATE VIEW postgresql_views.myapp.active_customers AS ... 
+
+-- Good: Organized by application, by feature (customers)
+CREATE VIEW myapp.customers.active AS ...
 ```
 
 **Realistic example**:
@@ -183,25 +184,25 @@ SELECT user_id, name, email FROM postgresql.public.users;
 -- Application: E-commerce platform
 -- Features: order processing, inventory, analytics
 
--- Bad: Everything mixed in physical schemas
+-- Bad: Views mixed into in physical schemas with tables
 CREATE VIEW postgresql.orders.current_orders AS ...
 CREATE VIEW postgresql.inventory.stock_levels AS ...
 CREATE VIEW mysql.legacy.product_catalog AS ...
 
 -- Good: Organized by feature
-CREATE VIEW ecommerce.orders.current AS ...
-CREATE VIEW ecommerce.orders.historical AS ...
-CREATE VIEW ecommerce.inventory.available_stock AS ...
-CREATE VIEW ecommerce.inventory.reserved_stock AS ...
-CREATE VIEW ecommerce.products.catalog AS ...
-CREATE VIEW ecommerce.products.pricing AS ...
+CREATE VIEW myapp.orders.current AS ...
+CREATE VIEW myapp.orders.historical AS ...
+CREATE VIEW myapp.inventory.available_stock AS ...
+CREATE VIEW myapp.inventory.reserved_stock AS ...
+CREATE VIEW myapp.products.catalog AS ...
+CREATE VIEW myapp.products.pricing AS ...
 ```
 
 **Implementation**:
 - Create application-specific catalogs (`myapp`, `feature_analytics`, `ecommerce`)
-- Create feature-specific schemas (`billing`, `logging`, `preferences`)
+- Create feature-specific schemas (`customers`, `logging`, `preferences`)
 - Use domain-specific language in all names (`customer_orders`, not `table_23_denorm`)
-- Avoid naming virtual schemas to directly mirror physical schemas (like `postgres_virtual.xxx`)
+- Avoid naming virtual schemas to directly mirror physical schemas (like `postgresql_virtual.xxx`)
 
 ---
 
@@ -213,7 +214,7 @@ CREATE VIEW ecommerce.products.pricing AS ...
 
 ```mermaid
 flowchart TD
-    App[Application] --> Catalog["Application Catalog<br/>(myapp.data.*)"]
+    App["Application"] --> Catalog["Application Catalog<br/>(myapp.data.*)"]
     Catalog --> Views["Application View<br/>Hierarchy"]
     Views --> DB[("Physical Tables")]
     App --> Legacy["Legacy Code<br/>(unmodified)"]
@@ -238,11 +239,11 @@ flowchart TD
 
 **Simple example**:
 ```sql
--- Application code (preferred)
-SELECT * FROM myapp.users WHERE active = true;
+-- Use virtual view (preferred, hides filtering for active customers)
+SELECT * FROM myapp.customers.active
 
--- vs. direct access (sometimes necessary, but not by default)
-SELECT * FROM postgresql.app_schema.users WHERE active = true;
+-- Use direct access (same query results, but not virtualized)
+SELECT * FROM postgresql.myapp.customers WHERE active = true
 ```
 
 **Realistic example**:
@@ -251,7 +252,7 @@ SELECT * FROM postgresql.app_schema.users WHERE active = true;
 @GetMapping("/orders")
 public List<Order> getOrders() {
     return jdbc.query(
-        "SELECT * FROM ecommerce.orders.current WHERE user_id = ?", userId
+        "SELECT * FROM myapp.orders.pending WHERE user_id = ?", userId
     );
 }
 
@@ -283,41 +284,41 @@ public void generateReports() {
 **Simple example (prototyping)**:
 ```sql
 -- Version 1: Prototype with static data
-CREATE VIEW myapp.users AS 
+CREATE VIEW myapp.users.all AS 
 SELECT * FROM (VALUES 
   (1, 'alice', 'alice@example.com'),
   (2, 'bob', 'bob@example.com')
 ) AS t (id, name, email);
 
 -- Version 2: Development database
-CREATE OR REPLACE VIEW myapp.users AS
+CREATE OR REPLACE VIEW myapp.users.all AS
 SELECT 
   CAST(id AS BIGINT) as id,
   CAST(name AS VARCHAR) as name,
   CAST(email AS VARCHAR) as email
-FROM postgresql.dev.users;
+FROM postgresql.myapp.users;
 ```
 
 **Realistic example (optional hybrid storage)**:
 ```sql
 -- Initially: All data in PostgreSQL
-CREATE VIEW myapp.events AS
+CREATE VIEW myapp.events.all AS
 SELECT 
   CAST(event_id AS BIGINT) as event_id,
   CAST(event_type AS VARCHAR) as event_type,
   CAST(event_time AS TIMESTAMP(3)) as event_time,
   CAST(user_id AS BIGINT) as user_id
-FROM postgresql.app.events;
+FROM postgresql.myapp.events;
 
 -- When enabled by feature flag: hybrid PostgreSQL + Iceberg
 -- Data older than 7 days is replicated separately
-CREATE OR REPLACE VIEW myapp.events AS
+CREATE OR REPLACE VIEW myapp.events.all AS
 SELECT event_id, event_type, event_time, user_id
-FROM postgresql.app.events 
+FROM postgresql.myapp.events 
 WHERE event_time > CURRENT_DATE - INTERVAL '7' DAYS
 UNION ALL
 SELECT event_id, event_type, event_time, user_id
-FROM iceberg.archive.events
+FROM iceberg.myapp.events
 WHERE event_time <= CURRENT_DATE - INTERVAL '7' DAYS;
 ```
 
@@ -338,32 +339,32 @@ WHERE event_time <= CURRENT_DATE - INTERVAL '7' DAYS;
 **Simple example**:
 ```sql
 -- Owned by data engineering, updated during migrations
-CREATE VIEW myapp.internal.users_merged AS
+CREATE VIEW myapp.users.merged AS
 SELECT id, name, email, account_type, tenant_id
-FROM postgresql.users 
-UNION ALL 
+FROM postgresql.myapp.users
+UNION ALL
 SELECT id, name, email, account_type, tenant_id
-FROM iceberg.users_archive;
+FROM iceberg.myapp.users;
 
 -- Owned by privacy system, updated when policies change
-CREATE VIEW myapp.internal.users_filtered AS
-SELECT id, name, email, account_type 
-FROM myapp.internal.users_merged
+CREATE VIEW myapp.users.filtered AS
+SELECT id, name, email, account_type
+FROM myapp.users.merged
 WHERE tenant_id = current_tenant() OR is_admin();
 
 -- Owned by dev team, updated during releases
-CREATE VIEW myapp.users AS
-SELECT id, name, email, account_type 
-FROM myapp.internal.users_filtered;
+CREATE VIEW myapp.users.all AS
+SELECT id, name, email, account_type
+FROM myapp.users.filtered;
 ```
 
 **Documented example with ownership matrix**:
 
-| Layer   | View Name                       | Owner            | Update Trigger    |
-|---------|---------------------------------|------------------|-------------------|
-| Entry   | `myapp.users`                   | Dev team         | Feature release   |
-| Privacy | `myapp.internal.users_filtered` | Privacy system   | Policy change     |
-| Merge   | `myapp.internal.users_merged`   | Data engineering | Storage migration |
+| Layer   | View Name              | Owner            | Update Trigger    |
+|---------|------------------------|------------------|-------------------|
+| Entry   | `myapp.users.all`      | Dev team         | Feature release   |
+| Privacy | `myapp.users.filtered` | Privacy system   | Policy change     |
+| Merge   | `myapp.users.merged`   | Data engineering | Storage migration |
 
 **Implementation**:
 - Document layer ownership in team wiki or repository README
@@ -384,38 +385,44 @@ FROM myapp.internal.users_filtered;
 **Working example with `CAST`**:
 ```sql
 -- Original view
-CREATE VIEW myapp.events AS
-SELECT 
+CREATE VIEW myapp.events.all AS
+SELECT
   CAST(id AS BIGINT) as event_id,
   CAST(name AS VARCHAR) as event_name
-FROM source_table;
+FROM postgresql.myapp.events;
 
 -- Good replacement: types preserved
-CREATE OR REPLACE VIEW myapp.events AS
-SELECT 
+CREATE OR REPLACE VIEW myapp.events.all AS
+SELECT
   CAST(event_id AS BIGINT) as event_id,
   CAST(event_name AS VARCHAR) as event_name
-FROM different_source;
+FROM iceberg.myapp.events;
 ```
 
 **Breaking example with cascading failure**:
 ```sql
 -- Base view (originally BIGINT)
-CREATE VIEW myapp.internal.events_raw AS
-SELECT CAST(id AS BIGINT) as event_id, ...;
+CREATE VIEW myapp.events.base AS
+SELECT
+  CAST(id AS BIGINT) as event_id,
+  CAST(timestamp AS TIMESTAMP(3)) as event_time
+FROM postgresql.myapp.events;
 
 -- Dependent view (expects BIGINT)
-CREATE VIEW myapp.events_hourly AS
-SELECT 
-  event_id, 
-  date_trunc('hour', event_time) as hour, 
+CREATE VIEW myapp.events.hourly AS
+SELECT
+  event_id,
+  date_trunc('hour', event_time) as hour,
   count(*) as event_count
-FROM myapp.internal.events_raw
+FROM myapp.events.base
 GROUP BY event_id, date_trunc('hour', event_time);
 
 -- Someone changes base view type
-CREATE OR REPLACE VIEW myapp.internal.events_raw AS
-SELECT CAST(id AS VARCHAR) as event_id, ...;  -- Now VARCHAR!
+CREATE OR REPLACE VIEW myapp.events.base AS
+SELECT
+  CAST(id AS VARCHAR) as event_id,  -- Now VARCHAR!
+  CAST(timestamp AS TIMESTAMP(3)) as event_time
+FROM iceberg.myapp.events;
 
 -- Query breaks with cryptic error:
 -- "Cannot apply operator: bigint = varchar" when joining
@@ -446,14 +453,14 @@ SELECT CAST(id AS VARCHAR) as event_id, ...;  -- Now VARCHAR!
 **Simple example**:
 ```sql
 -- Preferred: Users need permissions to underlying tables
-CREATE VIEW myapp.users
+CREATE VIEW myapp.users.all
 SECURITY INVOKER
-AS SELECT id, name, email FROM postgresql.users;
+AS SELECT id, name, email FROM postgresql.myapp.users;
 
 -- Avoid: All users get view creator's permissions
-CREATE VIEW myapp.users
+CREATE VIEW myapp.users.all
 SECURITY DEFINER
-AS SELECT id, name, email FROM postgresql.users;
+AS SELECT id, name, email FROM postgresql.myapp.users;
 ```
 
 **Realistic example**:
@@ -461,12 +468,12 @@ AS SELECT id, name, email FROM postgresql.users;
 -- Scenario: View spans multiple sources with different permissions
 
 -- Sales team should only see aggregated data
-CREATE VIEW sales.revenue_summary
+CREATE VIEW myapp.sales.revenue_summary
 SECURITY INVOKER
 AS SELECT 
   date_trunc('month', order_date) as month,
   SUM(total) as revenue
-FROM finance.orders  -- Finance team has access, sales team does not
+FROM postgresql.finance.orders  -- Finance team has access, sales team does not
 GROUP BY date_trunc('month', order_date);
 
 -- With SECURITY INVOKER:
@@ -491,36 +498,28 @@ GROUP BY date_trunc('month', order_date);
 
 ### Principle 7: Store Views in a Canonical Location
 
-**Rule**: Choose one authoritative connector for virtual view storage and commit to it, or use [ViewZoo](https://github.com/robfromboulder/viewzoo) to store current and future views using any connector.
+**Rule**: Choose one authoritative connector for virtual view storage and commit to it, or use [ViewZoo](https://github.com/robfromboulder/viewzoo) to store current and future views with minimal overhead.
 
-**Why**: View definitions must be persisted somewhere, even when using static data (no real data sources) or spanning multiple data sources.
-
-**Simple example**:
-```sql
--- Option A: Store in Iceberg (if always available)
-CREATE VIEW iceberg.myapp.logs AS SELECT ... 
-
--- Option B: Store in ViewZoo (lightweight, filesystem-based)
-CREATE VIEW viewzoo.myapp.logs AS SELECT ...
-```
+**Why**: View definitions must always be persisted somewhere, even when views are backed by static data (and there are no real data sources).
 
 **Recommended decision tree**:
 ```
 Do you already use Iceberg?
-├─ Yes → Store views in Iceberg catalog
+├─ Yes → Store views in Iceberg connector
 │         (Views live alongside data, one system to manage)
 │
 └─ No → Will you definitely use Iceberg within 6 months?
-    ├─ Yes → Store views in Iceberg catalog now
+    ├─ Yes → Store views in Iceberg connector now
     │         (Prepare for eventual data migration)
     │
     └─ No → Need maximum flexibility?
-        ├─ Yes → Use ViewZoo
+        ├─ Yes → Store views in ViewZoo connector
         │         (Filesystem-based, no external dependencies)
         │         (Git integration for version control)
         │
         └─ No → Use your most stable connector
                   (PostgreSQL, MySQL, whatever won't disappear)
+                  (Use ViewZoo for testing edge cases)
 ```
 
 **Implementation**:
@@ -541,14 +540,14 @@ Do you already use Iceberg?
 **Simple example**:
 ```sql
 -- These four views form a hierarchy, but how?
-CREATE VIEW myapp.internal.users_base AS 
-  SELECT * FROM postgresql.users;
-CREATE VIEW myapp.internal.users_enriched AS 
-  SELECT * FROM myapp.internal.users_base;
-CREATE VIEW myapp.internal.users_filtered AS 
-  SELECT * FROM myapp.internal.users_enriched;
-CREATE VIEW myapp.users AS 
-  SELECT * FROM myapp.internal.users_filtered;
+CREATE VIEW myapp.users.base AS
+  SELECT * FROM postgresql.myapp.users;
+CREATE VIEW myapp.users.enriched AS
+  SELECT * FROM myapp.users.base;
+CREATE VIEW myapp.users.filtered AS
+  SELECT * FROM myapp.users.enriched;
+CREATE VIEW myapp.users.all AS
+  SELECT * FROM myapp.users.filtered;
 
 -- SHOW CREATE VIEW only shows one level at a time
 -- Developers must manually trace dependencies
@@ -561,16 +560,16 @@ CREATE VIEW myapp.users AS
 -- Some views are used by multiple parents
 -- Manual tracking becomes difficult, even at this scale
 
-myapp.orders (entry)
-  ├─ depends on myapp.internal.orders_enriched
-  │   ├─ depends on myapp.internal.orders_merged
-  │   │   ├─ depends on postgresql.orders
-  │   │   └─ depends on iceberg.orders_archive
-  │   └─ depends on myapp.internal.customers
-  │       └─ depends on postgresql.customers
-  └─ depends on myapp.internal.products
-      ├─ depends on postgresql.products
-      └─ depends on redis.product_cache
+myapp.orders.all (entry)
+  ├─ depends on myapp.orders.enriched
+  │   ├─ depends on myapp.orders.merged
+  │   │   ├─ depends on postgresql.myapp.orders
+  │   │   └─ depends on iceberg.myapp.orders
+  │   └─ depends on myapp.customers.all
+  │       └─ depends on postgresql.myapp.customers
+  └─ depends on myapp.products.all
+      ├─ depends on postgresql.myapp.products
+      └─ depends on redis.myapp.product_cache
 ```
 
 **Implementation**:
@@ -582,15 +581,15 @@ myapp.orders (entry)
 **Example ViewMapper output**:
 ```mermaid
 flowchart TD
-    myapp.orders --> myapp.internal.orders_enriched
-    myapp.orders --> myapp.internal.products
-    myapp.internal.orders_enriched --> myapp.internal.orders_merged
-    myapp.internal.orders_enriched --> myapp.internal.customers
-    myapp.internal.orders_merged --> postgresql.orders
-    myapp.internal.orders_merged --> iceberg.orders_archive
-    myapp.internal.customers --> postgresql.customers
-    myapp.internal.products --> postgresql.products
-    myapp.internal.products --> redis.product_cache
+    myapp.orders.all --> myapp.orders.enriched
+    myapp.orders.all --> myapp.products.all
+    myapp.orders.enriched --> myapp.orders.merged
+    myapp.orders.enriched --> myapp.customers.all
+    myapp.orders.merged --> postgresql.myapp.orders
+    myapp.orders.merged --> iceberg.myapp.orders
+    myapp.customers.all --> postgresql.myapp.customers
+    myapp.products.all --> postgresql.myapp.products
+    myapp.products.all --> redis.myapp.product_cache
 ```
 
 **Link to ViewMapper**: [github.com/robfromboulder/viewmapper](https://github.com/robfromboulder/viewmapper)
@@ -619,7 +618,7 @@ flowchart TD
 **Simple example**:
 ```sql
 -- Day 1: No database yet, use static data
-CREATE VIEW myapp.customers AS
+CREATE VIEW myapp.customers.all AS
 SELECT * FROM (VALUES
   (1, 'Acme Corp', 'acme@example.com'),
   (2, 'Widgets Inc', 'widgets@example.com'),
@@ -630,12 +629,12 @@ SELECT * FROM (VALUES
 -- UI, business logic, tests all work against this view
 
 -- Day 30: Database ready, swap in real data
-CREATE OR REPLACE VIEW myapp.customers AS
-SELECT 
+CREATE OR REPLACE VIEW myapp.customers.all AS
+SELECT
   CAST(id AS BIGINT) as customer_id,
   CAST(name AS VARCHAR) as company_name,
   CAST(email AS VARCHAR) as email
-FROM postgresql.crm.customers;
+FROM postgresql.myapp.customers;
 
 -- Application code: unchanged
 ```
@@ -647,8 +646,8 @@ FROM postgresql.crm.customers;
 -- Some tables don't exist yet, some APIs not ready
 
 -- Start with mock data for all sources
-CREATE VIEW analytics.customer_lifetime_value AS
-SELECT 
+CREATE VIEW analytics.reports.customer_lifetime_value AS
+SELECT
   customer_id,
   SUM(order_total) as lifetime_value,
   COUNT(*) as order_count,
@@ -666,14 +665,14 @@ GROUP BY customer_id;
 -- Only implement real data pipelines after prototype is approved
 
 -- Later: Swap to real, complex query
-CREATE OR REPLACE VIEW analytics.customer_lifetime_value AS
-SELECT 
+CREATE OR REPLACE VIEW analytics.reports.customer_lifetime_value AS
+SELECT
   c.customer_id,
   SUM(o.total) as lifetime_value,
   COUNT(o.order_id) as order_count,
   MAX(o.order_date) as last_order_date
-FROM postgresql.crm.customers c
-JOIN postgresql.orders.orders o ON c.customer_id = o.customer_id
+FROM postgresql.myapp.customers c
+JOIN postgresql.myapp.orders o ON c.customer_id = o.customer_id
 WHERE o.status IN ('completed', 'shipped')
 GROUP BY c.customer_id;
 ```
@@ -716,16 +715,16 @@ gantt
 **Simple example**:
 ```sql
 -- Production view
-CREATE VIEW myapp.products AS
-SELECT 
+CREATE VIEW myapp.products.all AS
+SELECT
   CAST(product_id AS BIGINT) as product_id,
   CAST(name AS VARCHAR) as name,
   CAST(price AS DECIMAL(10,2)) as price,
   CAST(inventory_count AS INTEGER) as inventory_count
-FROM postgresql.products;
+FROM postgresql.myapp.products;
 
 -- Test view with edge cases
-CREATE OR REPLACE VIEW myapp.products AS
+CREATE OR REPLACE VIEW myapp.products.all AS
 SELECT * FROM (VALUES
   (1, 'Normal Product', 10.00, 100),
   (2, 'Zero Price', 0.00, 50),          -- Edge case
@@ -744,14 +743,14 @@ ViewZoo's filesystem-based storage enables powerful testing workflows:
 ```bash
 # Production branch: Real database views
 git checkout main
-/var/trino/views/myapp/data/orders.json:
+/var/trino/views/myapp/orders/all.json:
 {
   "viewSql": "SELECT * FROM postgresql.prod.orders"
 }
 
 # Test branch: Static edge-case data
 git checkout feature/test-edge-cases
-/var/trino/views/myapp/data/orders.json:
+/var/trino/views/myapp/orders/all.json:
 {
   "viewSql": "SELECT * FROM (VALUES 
     (1, 100, 999999.99, 'pending'),  -- Very large amount
@@ -816,35 +815,35 @@ configure_test_mode(current_config)
 **Simple example**:
 ```sql
 -- Original physical schema (poor naming)
--- postgresql.app.users_v1 (columns: userid, fname, lname, addr)
+-- postgresql.myapp.users_v1 (columns: userid, fname, lname, addr)
 
 -- Virtual view provides better names
-CREATE VIEW myapp.users AS
-SELECT 
-  userid as user_id, 
-  fname as first_name, 
+CREATE VIEW myapp.users.all AS
+SELECT
+  userid as user_id,
+  fname as first_name,
   lname as last_name,
   addr as address
-FROM postgresql.app.users_v1;
+FROM postgresql.myapp.users_v1;
 
 -- Later: Migrate to improved physical schema
--- postgresql.app.users_v2 (columns: user_id, first_name, last_name, street_address)
+-- postgresql.myapp.users_v2 (columns: user_id, first_name, last_name, street_address)
 
 -- Update view, application unchanged
-CREATE OR REPLACE VIEW myapp.users AS
-SELECT 
-  user_id, 
-  first_name, 
+CREATE OR REPLACE VIEW myapp.users.all AS
+SELECT
+  user_id,
+  first_name,
   last_name,
   street_address as address
-FROM postgresql.app.users_v2;
+FROM postgresql.myapp.users_v2;
 ```
 
 **Realistic example with backward compatibility**:
 ```sql
 -- V1 schema: Monolithic user table
-CREATE VIEW myapp.users AS
-SELECT 
+CREATE VIEW myapp.users.all AS
+SELECT
   CAST(user_id AS BIGINT) as user_id,
   CAST(email AS VARCHAR) as email,
   CAST(first_name AS VARCHAR) as first_name,
@@ -853,12 +852,12 @@ SELECT
   CAST(city AS VARCHAR) as city,
   CAST(state AS VARCHAR) as state,
   CAST(zip AS VARCHAR) as zip
-FROM postgresql.app.users_v1;
+FROM postgresql.myapp.users_v1;
 
 -- V2 schema: Normalized into users + addresses tables
 -- Keep backward compatibility during migration
-CREATE OR REPLACE VIEW myapp.users AS
-SELECT 
+CREATE OR REPLACE VIEW myapp.users.all AS
+SELECT
   CAST(u.user_id AS BIGINT) as user_id,
   CAST(u.email AS VARCHAR) as email,
   CAST(u.first_name AS VARCHAR) as first_name,
@@ -867,17 +866,17 @@ SELECT
   CAST(a.city AS VARCHAR) as city,
   CAST(a.state AS VARCHAR) as state,
   CAST(a.zip AS VARCHAR) as zip
-FROM postgresql.app.users_v2 u
-LEFT JOIN postgresql.app.addresses_v2 a 
-  ON u.user_id = a.user_id 
+FROM postgresql.myapp.users_v2 u
+LEFT JOIN postgresql.myapp.addresses_v2 a
+  ON u.user_id = a.user_id
   AND a.is_primary = true;
 
 -- V3 schema: Changed email validation, need to handle legacy bad data
-CREATE OR REPLACE VIEW myapp.users AS
-SELECT 
+CREATE OR REPLACE VIEW myapp.users.all AS
+SELECT
   CAST(u.user_id AS BIGINT) as user_id,
   CAST(
-    CASE 
+    CASE
       WHEN u.email LIKE '%@%' THEN u.email
       ELSE u.legacy_email  -- Fallback for pre-validation data
     END AS VARCHAR
@@ -888,8 +887,8 @@ SELECT
   CAST(a.city AS VARCHAR) as city,
   CAST(a.state AS VARCHAR) as state,
   CAST(a.zip AS VARCHAR) as zip
-FROM postgresql.app.users_v3 u
-LEFT JOIN postgresql.app.addresses_v3 a
+FROM postgresql.myapp.users_v3 u
+LEFT JOIN postgresql.myapp.addresses_v3 a
   ON u.user_id = a.user_id
   AND a.is_primary = true;
 ```
@@ -928,12 +927,12 @@ This ensures dependent views always have valid sources to query from during repl
 -- Feature 1: Order Processing (owned by checkout team)
 CREATE VIEW ecommerce.orders.current AS ...;
 CREATE VIEW ecommerce.orders.historical AS ...;
-CREATE VIEW ecommerce.orders.internal.merged AS ...;
+CREATE VIEW ecommerce.orders.merged AS ...;
 
 -- Feature 2: Inventory Management (owned by warehouse team)
 CREATE VIEW ecommerce.inventory.available AS ...;
 CREATE VIEW ecommerce.inventory.reserved AS ...;
-CREATE VIEW ecommerce.inventory.internal.merged AS ...;
+CREATE VIEW ecommerce.inventory.merged AS ...;
 
 -- Feature 3: Analytics (owned by data team, may reference others)
 CREATE VIEW ecommerce.analytics.sales_summary AS ...;
@@ -943,24 +942,20 @@ CREATE VIEW ecommerce.analytics.inventory_turnover AS ...;
 **Architecture visualization**:
 ```mermaid
 flowchart LR
-    subgraph Feature1[Order Processing Team]
-        O1[orders.current] --> O2[orders.internal.merged]
-        O2 --> DB1[(PostgreSQL)]
+    subgraph Feature1["Order Processing Team"]
+        O1["ecommerce.orders.current"] --> O2["ecommerce.orders.merged"]
+        O2 --> DB1[("PostgreSQL<br/>ecommerce")]
     end
 
-    subgraph Feature2[Inventory Team]
-        I1[inventory.available] --> I2[inventory.internal.merged]
-        I2 --> DB2[(Redis Cache)]
+    subgraph Feature2["Inventory Team"]
+        I1["ecommerce.inventory.available"] --> I2["ecommerce.inventory.merged"]
+        I2 --> DB2[("Redis Cache<br/>ecommerce")]
     end
 
-    subgraph Feature3[Analytics Team]
-        A1[analytics.sales] --> O1
+    subgraph Feature3["Analytics Team"]
+        A1["ecommerce.analytics.sales_summary"] --> O1
         A1 --> I1
     end
-
-    style Feature1 fill:#e1f5ff
-    style Feature2 fill:#ffe1e1
-    style Feature3 fill:#e1ffe1
 ```
 
 **Benefits**:
@@ -991,19 +986,19 @@ def configure_data_layer(config):
     if config.feature_flags.get('use_iceberg'):
         # Production with Iceberg
         execute_sql("""
-            CREATE OR REPLACE VIEW myapp.data.events AS
+            CREATE OR REPLACE VIEW myapp.events.all AS
             SELECT * FROM iceberg.warehouse.events
         """)
     elif config.environment == 'staging':
         # Staging database
         execute_sql("""
-            CREATE OR REPLACE VIEW myapp.data.events AS
+            CREATE OR REPLACE VIEW myapp.events.all AS
             SELECT * FROM postgresql.staging.events
         """)
     elif config.environment == 'development':
         # Static test data
         execute_sql("""
-            CREATE OR REPLACE VIEW myapp.data.events AS
+            CREATE OR REPLACE VIEW myapp.events.all AS
             SELECT * FROM (VALUES
               (1, 'test', CURRENT_TIMESTAMP)
             ) AS t (id, event, ts)
@@ -1011,7 +1006,7 @@ def configure_data_layer(config):
     else:
         # Production PostgreSQL
         execute_sql("""
-            CREATE OR REPLACE VIEW myapp.data.events AS
+            CREATE OR REPLACE VIEW myapp.events.all AS
             SELECT * FROM postgresql.prod.events
         """)
 
@@ -1064,73 +1059,60 @@ git checkout feature/iceberg-storage
 
 **Simple example**:
 ```sql
--- Base data view (internal only)
-CREATE VIEW myapp.internal.logs_raw AS
-SELECT 
-  log_id, event_type, user_id, 
+-- Base data layer
+CREATE VIEW myapp.logs.raw AS
+SELECT
+  log_id, event_type, user_id,
   user_email, ip_address, event_time
-FROM postgresql.logs;
+FROM postgresql.myapp.logs;
 
--- Privacy layer: Redact PII for most users
-CREATE VIEW myapp.logs AS
-SELECT 
-  log_id,
-  event_type,
-  user_id,
+-- Privacy layer (redact PII except for admins)
+CREATE VIEW myapp.logs.all AS
+SELECT
+  log_id, event_type, user_id,
   -- Redact email and IP unless admin
   CASE WHEN is_admin() THEN user_email ELSE 'REDACTED' END as user_email,
   CASE WHEN is_admin() THEN ip_address ELSE 'REDACTED' END as ip_address,
   event_time
-FROM myapp.internal.logs_raw;
+FROM myapp.logs.raw;
 ```
 
-**Realistic example with tenant isolation**:
+**Realistic example with multi-layer compliance**:
 ```sql
--- Multi-tenant application
--- Each customer should only see their own data
+-- Multi-tenant SaaS application
+-- Requirements: tenant isolation, right-to-be-forgotten, PII redaction
 
--- Base data (all tenants mixed)
-CREATE VIEW myapp.internal.orders_all AS
-SELECT 
-  order_id, tenant_id, customer_id, 
-  order_total, order_date, payment_method
-FROM postgresql.orders;
+-- Base data layer (all tenants, all customers)
+CREATE VIEW myapp.customers.base AS
+SELECT
+  customer_id, tenant_id, email, name,
+  address, phone, deleted_at
+FROM postgresql.myapp.customers;
 
--- Tenant-isolated view (automatic filtering)
-CREATE VIEW myapp.orders AS
-SELECT 
-  order_id, customer_id, order_total, 
-  order_date, payment_method
-FROM myapp.internal.orders_all
-WHERE tenant_id = current_tenant_id()
-   OR is_superuser();
-
--- Right-to-be-forgotten implementation
-CREATE VIEW myapp.internal.customers_active AS
-SELECT 
-  customer_id, email, name, address, phone
-FROM postgresql.customers
+-- Right-to-be-forgotten filtering layer
+CREATE VIEW myapp.customers.active AS
+SELECT
+  customer_id, tenant_id, email, name, address, phone
+FROM myapp.customers.base
 WHERE deleted_at IS NULL
   AND customer_id NOT IN (
-    SELECT customer_id 
-    FROM postgresql.deletion_requests 
+    SELECT customer_id
+    FROM postgresql.myapp.deletion_requests
     WHERE status = 'approved'
   );
 
--- Application view with both privacy and tenant isolation
-CREATE VIEW myapp.customers AS
-SELECT 
-  customer_id, 
-  email, 
-  name, 
+-- Application entry point (with tenant isolation + PII redaction)
+CREATE VIEW myapp.customers.all AS
+SELECT
+  customer_id, email, name,
   -- Redact address for non-privileged users
-  CASE 
-    WHEN is_privileged_user() THEN address 
-    ELSE 'REDACTED' 
+  CASE
+    WHEN is_privileged_user() THEN address
+    ELSE 'REDACTED'
   END as address,
   phone
-FROM myapp.internal.customers_active
-WHERE tenant_id = current_tenant_id();
+FROM myapp.customers.active
+WHERE tenant_id = current_tenant_id() OR is_superuser();
 ```
 
 **Benefits**:
@@ -1141,15 +1123,14 @@ WHERE tenant_id = current_tenant_id();
 
 ```mermaid
 flowchart TD
-    App[Application Query] --> Privacy[Privacy Layer<br/>myapp.customers]
-    Privacy --> Isolation[Tenant Isolation<br/>myapp.internal.customers_active]
-    Isolation --> Physical[(Physical Table<br/>postgresql.customers)]
-    
-    Privacy -->|Redacts PII| App
-    Isolation -->|Filters by tenant| Privacy
-    
-    style Privacy fill:#ffe1e1
-    style Isolation fill:#ffe1e1
+    App["Application Query"] --> Privacy["Privacy Layer<br/>myapp.customers.all"]
+    Privacy --> Active["Right-to-be-Forgotten<br/>myapp.customers.active"]
+    Active --> Base["Base Layer<br/>myapp.customers.base"]
+    Base --> Physical[("Physical Table<br/>postgresql.customers")]
+
+    Privacy -->|Tenant isolation + PII redaction| App
+    Active -->|Filters deleted customers| Privacy
+    Base -->|Raw data| Active
 ```
 
 ---
@@ -1196,7 +1177,7 @@ WHERE event_time > CURRENT_DATE - INTERVAL '30' DAYS
 UNION ALL
 -- Historical data in Iceberg
 SELECT log_id, event_type, event_time, user_id
-FROM iceberg.archive.logs
+FROM iceberg.myapp.logs
 WHERE event_time <= CURRENT_DATE - INTERVAL '30' DAYS;
 ```
 
@@ -1208,7 +1189,7 @@ Zero application changes. Behind the scenes, a replication job moves old data fr
 -- Once all data is in Iceberg and PostgreSQL is ready to decommission
 CREATE OR REPLACE VIEW myapp.data.logs AS
 SELECT log_id, event_type, event_time, user_id
-FROM iceberg.warehouse.logs;
+FROM iceberg.myapp.logs;
 ```
 
 **What we're NOT covering**: How replication works, Iceberg table maintenance, partition strategies, compaction. This manifesto focuses on the view architecture that enables migration.
@@ -1306,7 +1287,7 @@ git checkout -b development
 ```sql
 -- Create schemas for your application
 CREATE SCHEMA IF NOT EXISTS myapp.data;
-CREATE SCHEMA IF NOT EXISTS myapp.internal;
+CREATE SCHEMA IF NOT EXISTS myapp.orders;
 CREATE SCHEMA IF NOT EXISTS myapp.api;
 ```
 
@@ -1338,7 +1319,7 @@ ResultSet rs = conn.createStatement().executeQuery(
 
 ```sql
 -- Static test data, no database needed
-CREATE VIEW ecommerce.orders AS
+CREATE VIEW ecommerce.orders.all AS
 SELECT * FROM (VALUES
   (1, 101, 50.00, 'pending', TIMESTAMP '2024-01-01 10:00:00'),
   (2, 102, 75.00, 'shipped', TIMESTAMP '2024-01-01 11:00:00'),
@@ -1346,7 +1327,7 @@ SELECT * FROM (VALUES
 ) AS t (order_id, customer_id, total, status, created_at);
 
 -- Application code
-SELECT * FROM ecommerce.orders WHERE status = 'pending';
+SELECT * FROM ecommerce.orders.all [WHERE status = 'pending'];
 ```
 
 UI development, business logic tests, stakeholder demos all work with this mock data.
@@ -1357,17 +1338,17 @@ UI development, business logic tests, stakeholder demos all work with this mock 
 
 ```sql
 -- Swap to development PostgreSQL
-CREATE OR REPLACE VIEW ecommerce.orders AS
+CREATE OR REPLACE VIEW ecommerce.orders.all AS
 SELECT
   CAST(order_id AS BIGINT) as order_id,
   CAST(customer_id AS BIGINT) as customer_id,
   CAST(total_amount AS DECIMAL(10,2)) as total,
   CAST(order_status AS VARCHAR) as status,
   CAST(created_at AS TIMESTAMP(3)) as created_at
-FROM postgresql.dev.orders;
+FROM postgresql.ecommerce.orders;
 
 -- Application code unchanged
-SELECT * FROM ecommerce.orders WHERE status = 'pending';
+SELECT * FROM ecommerce.orders.all [WHERE status = 'pending'];
 ```
 
 #### Phase 3: PostgreSQL Production (Week 8)
@@ -1376,17 +1357,17 @@ SELECT * FROM ecommerce.orders WHERE status = 'pending';
 
 ```sql
 -- Point to production database
-CREATE OR REPLACE VIEW ecommerce.orders AS
+CREATE OR REPLACE VIEW ecommerce.orders.all AS
 SELECT
   CAST(order_id AS BIGINT) as order_id,
   CAST(customer_id AS BIGINT) as customer_id,
   CAST(total_amount AS DECIMAL(10,2)) as total,
   CAST(order_status AS VARCHAR) as status,
   CAST(created_at AS TIMESTAMP(3)) as created_at
-FROM postgresql.prod.orders;
+FROM postgresql.ecommerce.orders;
 
 -- Application code still unchanged
-SELECT * FROM ecommerce.orders WHERE status = 'pending';
+SELECT * FROM ecommerce.orders.all [WHERE status = 'pending'];
 ```
 
 #### Phase 4: Add Iceberg for Historical Data (Month 6)
@@ -1395,7 +1376,7 @@ SELECT * FROM ecommerce.orders WHERE status = 'pending';
 
 ```sql
 -- Hybrid: Recent in PostgreSQL, historical in Iceberg
-CREATE OR REPLACE VIEW ecommerce.orders AS
+CREATE OR REPLACE VIEW ecommerce.orders.all AS
 -- Hot data: Last 90 days in PostgreSQL
 SELECT
   CAST(order_id AS BIGINT) as order_id,
@@ -1403,12 +1384,10 @@ SELECT
   CAST(total_amount AS DECIMAL(10,2)) as total,
   CAST(order_status AS VARCHAR) as status,
   CAST(created_at AS TIMESTAMP(3)) as created_at
-FROM postgresql.prod.orders
+FROM postgresql.ecommerce.orders
 WHERE created_at > CURRENT_DATE - INTERVAL '90' DAYS
   AND replicated = false
-
 UNION ALL
-
 -- Cold data: Older than 90 days in Iceberg
 SELECT
   CAST(order_id AS BIGINT) as order_id,
@@ -1416,11 +1395,11 @@ SELECT
   CAST(total_amount AS DECIMAL(10,2)) as total,
   CAST(order_status AS VARCHAR) as status,
   CAST(created_at AS TIMESTAMP(3)) as created_at
-FROM iceberg.archive.orders
+FROM iceberg.ecommerce.orders
 WHERE created_at <= CURRENT_DATE - INTERVAL '90' DAYS;
 
 -- Application code STILL unchanged
-SELECT * FROM ecommerce.orders WHERE status = 'pending';
+SELECT * FROM ecommerce.orders.all [WHERE status = 'pending'];
 ```
 
 Behind the scenes, a replication job:
@@ -1434,7 +1413,43 @@ Behind the scenes, a replication job:
 **Goal**: Add privacy layer, separate concerns, enable independent updates.
 
 ```sql
--- Layer 1: Entry point (application-facing)
+-- Storage merge layer (copied from Phase 4, but under a new name)
+CREATE VIEW ecommerce.orders.merged AS
+-- Hot data in PostgreSQL
+SELECT
+  CAST(order_id AS BIGINT) as order_id,
+  CAST(customer_id AS BIGINT) as customer_id,
+  CAST(total_amount AS DECIMAL(10,2)) as total,
+  CAST(order_status AS VARCHAR) as status,
+  CAST(created_at AS TIMESTAMP(3)) as created_at,
+  CAST(tenant_id AS BIGINT) as tenant_id
+FROM postgresql.ecommerce.orders
+WHERE created_at > CURRENT_DATE - INTERVAL '90' DAYS
+  AND replicated = false
+UNION ALL
+-- Cold data in Iceberg
+SELECT
+  CAST(order_id AS BIGINT) as order_id,
+  CAST(customer_id AS BIGINT) as customer_id,
+  CAST(total_amount AS DECIMAL(10,2)) as total,
+  CAST(order_status AS VARCHAR) as status,
+  CAST(created_at AS TIMESTAMP(3)) as created_at,
+  CAST(tenant_id AS BIGINT) as tenant_id
+FROM iceberg.ecommerce.orders
+WHERE created_at <= CURRENT_DATE - INTERVAL '90' DAYS;
+
+-- Privacy/security layer (including tenant isolation)
+CREATE VIEW ecommerce.orders.filtered AS
+SELECT
+  order_id, customer_id, total, status, created_at, tenant_id
+FROM ecommerce.orders.merged
+WHERE
+  -- Tenant isolation
+  tenant_id = current_tenant_id()
+  -- Data retention (2 year policy)
+  AND created_at > CURRENT_DATE - INTERVAL '2' YEAR;
+
+-- Application entry point with calculated fields
 CREATE VIEW ecommerce.api.orders AS
 SELECT
   order_id,
@@ -1450,68 +1465,32 @@ SELECT
     WHEN status IN ('cancelled', 'refunded') THEN 'closed'
     ELSE 'other'
   END as order_category
-FROM ecommerce.internal.orders_filtered;
+FROM ecommerce.orders.filtered;
 
--- Layer 2: Privacy/security layer
-CREATE VIEW ecommerce.internal.orders_filtered AS
-SELECT
-  order_id, customer_id, total, status, created_at, tenant_id
-FROM ecommerce.internal.orders_merged
-WHERE
-  -- Tenant isolation
-  tenant_id = current_tenant_id()
-  -- Data retention (2 year policy)
-  AND created_at > CURRENT_DATE - INTERVAL '2' YEAR;
+-- Swap in new application entry point
+CREATE OR REPLACE VIEW ecommerce.orders.all AS SELECT * FROM ecommerce.api.orders;
 
--- Layer 3: Storage merger (unchanged from Phase 4)
-CREATE VIEW ecommerce.internal.orders_merged AS
--- Hot data in PostgreSQL
-SELECT
-  CAST(order_id AS BIGINT) as order_id,
-  CAST(customer_id AS BIGINT) as customer_id,
-  CAST(total_amount AS DECIMAL(10,2)) as total,
-  CAST(order_status AS VARCHAR) as status,
-  CAST(created_at AS TIMESTAMP(3)) as created_at,
-  CAST(tenant_id AS BIGINT) as tenant_id
-FROM postgresql.prod.orders
-WHERE created_at > CURRENT_DATE - INTERVAL '90' DAYS
-  AND replicated = false
-UNION ALL
--- Cold data in Iceberg
-SELECT
-  CAST(order_id AS BIGINT) as order_id,
-  CAST(customer_id AS BIGINT) as customer_id,
-  CAST(total_amount AS DECIMAL(10,2)) as total,
-  CAST(order_status AS VARCHAR) as status,
-  CAST(created_at AS TIMESTAMP(3)) as created_at,
-  CAST(tenant_id AS BIGINT) as tenant_id
-FROM iceberg.archive.orders
-WHERE created_at <= CURRENT_DATE - INTERVAL '90' DAYS;
-
--- Update application to use new entry point
-SELECT * FROM ecommerce.api.orders WHERE status = 'pending';
+-- Application code STILL unchanged
+SELECT * FROM ecommerce.orders.all [WHERE status = 'pending'];
 ```
+
+👆 note that because the hierarchy is built in parallel and the application entry point is swapped at the end, there's no disruption to application queries
 
 #### View Dependency Diagram
 
 ```mermaid
 flowchart TD
-    App[Application Code] --> Entry[ecommerce.api.orders<br/>Entry Layer<br/>Computed fields, categorization]
-    Entry --> Filter[ecommerce.internal.orders_filtered<br/>Privacy Layer<br/>Tenant isolation, retention policy]
-    Filter --> Merge[ecommerce.internal.orders_merged<br/>Merge Layer<br/>PostgreSQL + Iceberg union]
-    Merge --> PG[(PostgreSQL<br/>Hot Storage<br/>Last 90 days)]
-    Merge --> Ice[(Iceberg<br/>Cold Storage<br/>> 90 days)]
-
-    style Entry fill:#e1f5ff
-    style Filter fill:#ffe1e1
-    style Merge fill:#e1ffe1
+    App["Application Code"] --> Entry["ecommerce.api.orders<br/>Entry Layer<br/>Computed fields, categorization"]
+    Entry --> Filter["ecommerce.orders.filtered<br/>Privacy Layer<br/>Tenant isolation, retention policy"]
+    Filter --> Merge["ecommerce.orders.merged<br/>Merge Layer<br/>PostgreSQL + Iceberg union"]
+    Merge --> PG[("postgresql.ecommerce.orders<br/>Hot Storage<br/>Last 90 days")]
+    Merge --> Ice[("iceberg.ecommerce.orders<br/>Cold Storage<br/>> 90 days")]
 ```
 
 #### Key Achievements
 
 Throughout this entire evolution:
-- Application code changed **once** (connection string in Phase 1)
-- All subsequent phases: zero application changes
+- Zero application changes as storage changes
 - No downtime during any transition
 - Rollback possible at any phase (just replace view)
 - Different teams own different layers
@@ -1591,26 +1570,38 @@ git commit -m "Add view dependency visualization"
 
 **Example**:
 ```sql
--- Original: Returns BIGINT implicitly
-CREATE VIEW base AS SELECT id FROM table1;
+-- Original: Returns BIGINT implicitly from PostgreSQL
+CREATE VIEW myapp.users.base AS
+SELECT user_id, name, email
+FROM postgresql.myapp.users;
 
--- Replacement: Returns INTEGER (different precision)
-CREATE OR REPLACE VIEW base AS SELECT id FROM table2;
+-- Replacement: Returns INTEGER from different source (different precision)
+CREATE OR REPLACE VIEW myapp.users.base AS
+SELECT user_id, name, email
+FROM mysql.myapp.users;
 
 -- Dependent views expecting BIGINT start failing
-SELECT b.id, o.order_id 
-FROM base b
-JOIN orders o ON b.id = o.customer_id;  -- Type mismatch error
+SELECT u.user_id, o.order_id
+FROM myapp.users.base u
+JOIN myapp.orders.all o ON u.user_id = o.customer_id;  -- Type mismatch error
 ```
 
 **Solution**: Always use explicit CAST in base views.
 ```sql
-CREATE VIEW base AS
-SELECT CAST(id AS BIGINT) as id FROM source;
+CREATE VIEW myapp.users.base AS
+SELECT
+  CAST(user_id AS BIGINT) as user_id,
+  CAST(name AS VARCHAR) as name,
+  CAST(email AS VARCHAR) as email
+FROM postgresql.myapp.users;
 
 -- Type is now locked regardless of source
-CREATE OR REPLACE VIEW base AS
-SELECT CAST(id AS BIGINT) as id FROM different_source;
+CREATE OR REPLACE VIEW myapp.users.base AS
+SELECT
+  CAST(user_id AS BIGINT) as user_id,
+  CAST(name AS VARCHAR) as name,
+  CAST(email AS VARCHAR) as email
+FROM mysql.myapp.users;
 ```
 
 ### Pitfall 2: Forgetting to Update Dependent Layers
@@ -1620,17 +1611,30 @@ SELECT CAST(id AS BIGINT) as id FROM different_source;
 **Example**:
 ```sql
 -- Base view
-CREATE VIEW base AS SELECT CAST(id AS BIGINT) as id, name FROM source1;
+CREATE VIEW myapp.users.base AS
+SELECT
+  CAST(user_id AS BIGINT) as user_id,
+  CAST(name AS VARCHAR) as name
+FROM postgresql.myapp.users;
 
 -- Middle layer
-CREATE VIEW middle AS SELECT id, UPPER(name) as name FROM base;
+CREATE VIEW myapp.users.enriched AS
+SELECT
+  user_id,
+  UPPER(name) as name
+FROM myapp.users.base;
 
 -- Top layer
-CREATE VIEW top AS SELECT * FROM middle;
+CREATE VIEW myapp.users.all AS
+SELECT * FROM myapp.users.enriched;
 
 -- Replace base, add new column
-CREATE OR REPLACE VIEW base AS 
-SELECT CAST(id AS BIGINT) as id, name, email FROM source2;
+CREATE OR REPLACE VIEW myapp.users.base AS
+SELECT
+  CAST(user_id AS BIGINT) as user_id,
+  CAST(name AS VARCHAR) as name,
+  CAST(email AS VARCHAR) as email
+FROM postgresql.myapp.users;
 
 -- Middle layer doesn't expose email!
 -- Top layer consumers can't access it
@@ -1645,13 +1649,13 @@ SELECT CAST(id AS BIGINT) as id, name, email FROM source2;
 **Example**:
 ```sql
 -- Original: Always returns rows in id order
-CREATE VIEW myapp.events AS
-SELECT * FROM postgresql.events 
-ORDER BY id;
+CREATE VIEW myapp.events.all AS
+SELECT * FROM postgresql.myapp.events
+ORDER BY event_id;
 
 -- Replacement: No ORDER BY, application breaks expecting sorted data
-CREATE OR REPLACE VIEW myapp.events AS
-SELECT * FROM iceberg.events;  -- No ORDER BY!
+CREATE OR REPLACE VIEW myapp.events.all AS
+SELECT * FROM iceberg.myapp.events;  -- No ORDER BY!
 ```
 
 **Solution**:
@@ -1669,12 +1673,12 @@ SELECT * FROM iceberg.events;  -- No ORDER BY!
 **Example**:
 ```sql
 -- View created by admin with SECURITY INVOKER
-CREATE VIEW myapp.users 
+CREATE VIEW myapp.users.all
 SECURITY INVOKER
-AS SELECT * FROM postgresql.users;
+AS SELECT * FROM postgresql.myapp.users;
 
 -- User has access to myapp catalog but not postgresql catalog
-SELECT * FROM myapp.users;  -- Fails with permission error
+SELECT * FROM myapp.users.all;  -- Fails with permission error
 ```
 
 **Solution**:
@@ -1683,8 +1687,8 @@ SELECT * FROM myapp.users;  -- Fails with permission error
 - Document permission requirements clearly in view comments
 
 ```sql
-COMMENT ON VIEW myapp.users IS
-'Requires SELECT permission on postgresql.users table';
+COMMENT ON VIEW myapp.users.all IS
+'Requires SELECT permission on postgresql.myapp.users table';
 ```
 
 ### Pitfall 5: Attempting to Delete Base Views
@@ -1693,25 +1697,16 @@ COMMENT ON VIEW myapp.users IS
 
 **Example**:
 ```sql
--- Try to drop base view first
-DROP VIEW myapp.internal.events_base;
--- Error: Cannot drop view 'events_base': depended upon by view 'events_filtered'
+-- Create small hierarchy
+CREATE VIEW myapp.events.filtered AS SELECT * FROM ...;
+CREATE VIEW myapp.events.all AS SELECT * FROM myapp.events.filtered;
 
--- Dependent views still reference it
-CREATE VIEW myapp.events AS SELECT * FROM myapp.internal.events_filtered;
-CREATE VIEW myapp.internal.events_filtered AS SELECT * FROM myapp.internal.events_base;
+-- Try to drop referenced view
+DROP VIEW myapp.events.filtered;
+-- Error: Cannot drop view 'filtered': depended upon by view 'all'
 ```
 
-**Solution**: Trino prevents dropping views with dependents. Always drop top-down (dependents first, then base):
-
-```sql
--- Remove dependent views first (top-down)
-DROP VIEW IF EXISTS myapp.events;
-DROP VIEW IF EXISTS myapp.internal.events_filtered;
-DROP VIEW IF EXISTS myapp.internal.events_base;
-```
-
-Use `DROP VIEW IF EXISTS` for safety in scripts. Use ViewMapper to identify all dependents before dropping views.
+**Solution**: Use ViewMapper to identify all dependents before dropping views.
 
 ### Pitfall 6: Lost View Definitions
 
@@ -1720,7 +1715,8 @@ Use `DROP VIEW IF EXISTS` for safety in scripts. Use ViewMapper to identify all 
 **Example**:
 ```sql
 -- Views stored in test PostgreSQL instance
-CREATE VIEW postgresql_test.myapp.users AS ...
+CREATE VIEW test.myapp.users_all AS
+SELECT * FROM postgresql.myapp.users;
 
 -- Test instance deleted, all view definitions lost
 ```
@@ -1768,8 +1764,8 @@ Virtual views are typically contraindicated for:
 -- This isn't a hierarchy, just one view
 -- No layers, no swappability, no real abstraction
 -- Just an extra indirection
-CREATE VIEW myapp.config AS
-SELECT key, value FROM postgresql.config;
+CREATE VIEW myapp.config.config AS
+SELECT key, value FROM postgresql.myapp.config;
 ```
 
 **When it becomes worthwhile**:
@@ -1812,7 +1808,7 @@ def get_orders(user_id):
     # Virtual view preferred - flexibility over microseconds
     # This query runs 100 times per second
     result = query(
-        "SELECT * FROM myapp.orders WHERE user_id = ?",
+        "SELECT * FROM myapp.orders.all WHERE user_id = ?",
         user_id
     )
     return result
@@ -1959,5 +1955,5 @@ To the extent possible under law, the author has waived all copyright and relate
 
 ---
 
-**Version**: 0.52
-**Last Updated**: 2025-12-16
+**Version**: 0.53
+**Last Updated**: 2025-12-18
