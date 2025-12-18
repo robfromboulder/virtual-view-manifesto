@@ -2,9 +2,9 @@
 
 **Project**: The Virtual View Manifesto
 **Author**: Rob Dickinson (robfromboulder)
-**Current Version**: 0.51
+**Current Version**: 0.52
 **Last Updated**: 2025-12-16
-**Document Length**: ~1998 lines / ~9,200 words
+**Document Length**: ~1963 lines / ~9,000 words
 
 ---
 
@@ -21,16 +21,15 @@ This is a technical manifesto about virtual view hierarchies in SQL databases, w
 ## 📐 Document Structure Quick Reference
 
 The README is organized in these major sections:
-1. **Introduction** (lines 46-150): Problem statement, classical vs virtual views
+1. **Introduction** (lines 45-150): Problem statement, classical vs virtual views
 2. **Principles** (lines 152-599): Core architectural principles with examples
-3. **Use Cases** (lines 601-1244): Eight practical scenarios (note: Use Case 8 is stub for future completion)
-4. **Implementation Guide** (lines 1246-1413): Step-by-step getting started
-5. **Common Pitfalls** (lines 1415-1585): Seven mistakes and solutions
-6. **When NOT to Use** (lines 1587-1717): Three anti-patterns
-7. **Related Tools** (lines 1719-1753): ViewMapper and ViewZoo documentation
-8. **Glossary** (lines 1755-1778): Technical term definitions
-9. **Appendix** (lines 1780-1974): Complete end-to-end example
-10. **Footer** (lines 1976-1998): License, thanks, metadata
+3. **Use Cases** (lines 601-1250): Eight practical scenarios (note: Use Case 8 is stub for future completion)
+4. **Implementation Guide** (lines 1252-1575): Setup, complete e-commerce example, documentation/tooling
+5. **Common Pitfalls** (lines 1577-1747): Seven mistakes and solutions
+6. **When NOT to Use** (lines 1749-1879): Three anti-patterns
+7. **Related Tools** (lines 1881-1915): ViewMapper and ViewZoo documentation
+8. **Glossary** (lines 1917-1940): Technical term definitions
+9. **Footer** (lines 1942-1963): License, thanks, metadata
 
 ---
 
@@ -257,7 +256,7 @@ For each major principle or use case:
 
 ## 📝 Current Status
 
-**Version**: 0.51 (Draft)
+**Version**: 0.52 (Draft)
 **Status**: Work in progress, streamlined for initial peer review
 **Next Milestone**: 1.0 release after incorporating feedback
 **Entire document is open for review**
@@ -293,6 +292,14 @@ When you ask Claude to work on this project, you can use these shortcuts:
 ---
 
 ## 🔄 Change Log
+
+### 2025-12-16 (version 0.52)
+- **Merged Implementation Guide and Appendix** to eliminate duplication and improve flow
+- Eliminated redundant Steps 3, 5, 6 (generic examples superseded by e-commerce example)
+- Removed standalone "Appendix: Complete Example" section
+- Updated Table of Contents to remove Appendix link
+- Document reduced from 1998 to 1963 lines, ~9,000 words
+- Net change: 35 lines reduced
 
 ### 2025-12-16 (version 0.51)
 - **Refined all eight use case challenge/solution statements** for clarity, specificity, and value proposition

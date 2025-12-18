@@ -39,7 +39,6 @@ This manifesto admittedly relies on multi-database platforms like Trino as the "
 - [When NOT to Use Virtual Views](#when-not-to-use-virtual-views)
 - [Related Tools](#related-tools)
 - [Glossary](#glossary)
-- [Appendix: Complete Example](#appendix-complete-example)
 
 ---
 
@@ -1264,6 +1263,7 @@ gantt
 
 - [ ] Choose view storage location (Iceberg/ViewZoo/other)
 - [ ] Create application catalog structure
+- [ ] Update application connection string
 - [ ] Define initial view with static data
 - [ ] Build application against view interface
 - [ ] Verify application queries work with mock data
@@ -1271,17 +1271,21 @@ gantt
 - [ ] Document view ownership and update procedures
 - [ ] Set up ViewMapper for dependency visualization
 
-### Step 1: Choose View Storage
+### Setup: Choose Your Foundation
+
+Before building virtual views, establish your infrastructure foundation.
+
+**Choose View Storage**
 
 Follow Principle 7 decision tree. Most common choices:
 
-**Use Iceberg if**: Already using it or definitely will within 6 months  
-**Use ViewZoo if**: Maximum flexibility, git integration desired, no external dependencies  
+**Use Iceberg if**: Already using it or definitely will within 6 months
+**Use ViewZoo if**: Maximum flexibility, git integration desired, no external dependencies
 **Use existing connector if**: Have stable PostgreSQL/MySQL that won't disappear
 
 **ViewZoo setup**: See [github.com/robfromboulder/viewzoo](https://github.com/robfromboulder/viewzoo) for installation.
 
-**Git integration with ViewZoo**:
+**Git Integration** (if using ViewZoo):
 ```bash
 # Initialize git repository for view definitions
 cd /var/trino/views
@@ -1298,8 +1302,7 @@ git checkout -b development
 # Rollback via git history
 ```
 
-### Step 2: Create Application Catalog
-
+**Create Application Catalog**:
 ```sql
 -- Create schemas for your application
 CREATE SCHEMA IF NOT EXISTS myapp.data;
@@ -1307,26 +1310,7 @@ CREATE SCHEMA IF NOT EXISTS myapp.internal;
 CREATE SCHEMA IF NOT EXISTS myapp.api;
 ```
 
-### Step 3: Define Initial Views
-
-Start simple with static data:
-
-```sql
-CREATE VIEW myapp.data.users AS
-SELECT * FROM (VALUES
-  (1, 'Alice', 'alice@example.com'),
-  (2, 'Bob', 'bob@example.com')
-) AS t (user_id, name, email);
-
-CREATE VIEW myapp.data.orders AS
-SELECT * FROM (VALUES
-  (101, 1, 50.00, DATE '2024-01-01'),
-  (102, 2, 75.00, DATE '2024-01-02')
-) AS t (order_id, user_id, total, order_date);
-```
-
-### Step 4: Update Application Connection
-
+**Update Application Connection**:
 ```java
 // Before: Direct PostgreSQL connection
 Connection conn = DriverManager.getConnection(
@@ -1344,31 +1328,201 @@ ResultSet rs = conn.createStatement().executeQuery(
 );
 ```
 
-### Step 5: Verify with Mock Data
+### Complete Example: E-commerce Application
 
-Run full application test suite against static views. This validates that view interfaces match application expectations before infrastructure exists.
+**Scenario**: E-commerce application needs order data. Starts as prototype, moves to PostgreSQL, eventually adds Iceberg for historical orders.
 
-### Step 6: Swap to Real Data
+#### Phase 1: Prototype (Week 1)
+
+**Goal**: Build UI and business logic before infrastructure exists.
 
 ```sql
--- Replace with real PostgreSQL data
-CREATE OR REPLACE VIEW myapp.data.users AS
-SELECT 
-  CAST(id AS BIGINT) as user_id,
-  CAST(name AS VARCHAR) as name,
-  CAST(email AS VARCHAR) as email
-FROM postgresql.prod.users;
+-- Static test data, no database needed
+CREATE VIEW ecommerce.orders AS
+SELECT * FROM (VALUES
+  (1, 101, 50.00, 'pending', TIMESTAMP '2024-01-01 10:00:00'),
+  (2, 102, 75.00, 'shipped', TIMESTAMP '2024-01-01 11:00:00'),
+  (3, 101, 120.00, 'delivered', TIMESTAMP '2024-01-02 09:00:00')
+) AS t (order_id, customer_id, total, status, created_at);
 
-CREATE OR REPLACE VIEW myapp.data.orders AS
-SELECT 
-  CAST(order_id AS BIGINT) as order_id,
-  CAST(user_id AS BIGINT) as user_id,
-  CAST(total AS DECIMAL(10,2)) as total,
-  CAST(created_at AS DATE) as order_date
-FROM postgresql.prod.orders;
+-- Application code
+SELECT * FROM ecommerce.orders WHERE status = 'pending';
 ```
 
-### Step 7: Document
+UI development, business logic tests, stakeholder demos all work with this mock data.
+
+#### Phase 2: PostgreSQL Development (Week 3)
+
+**Goal**: Connect to real database, validate with real data patterns.
+
+```sql
+-- Swap to development PostgreSQL
+CREATE OR REPLACE VIEW ecommerce.orders AS
+SELECT
+  CAST(order_id AS BIGINT) as order_id,
+  CAST(customer_id AS BIGINT) as customer_id,
+  CAST(total_amount AS DECIMAL(10,2)) as total,
+  CAST(order_status AS VARCHAR) as status,
+  CAST(created_at AS TIMESTAMP(3)) as created_at
+FROM postgresql.dev.orders;
+
+-- Application code unchanged
+SELECT * FROM ecommerce.orders WHERE status = 'pending';
+```
+
+#### Phase 3: PostgreSQL Production (Week 8)
+
+**Goal**: Launch to customers.
+
+```sql
+-- Point to production database
+CREATE OR REPLACE VIEW ecommerce.orders AS
+SELECT
+  CAST(order_id AS BIGINT) as order_id,
+  CAST(customer_id AS BIGINT) as customer_id,
+  CAST(total_amount AS DECIMAL(10,2)) as total,
+  CAST(order_status AS VARCHAR) as status,
+  CAST(created_at AS TIMESTAMP(3)) as created_at
+FROM postgresql.prod.orders;
+
+-- Application code still unchanged
+SELECT * FROM ecommerce.orders WHERE status = 'pending';
+```
+
+#### Phase 4: Add Iceberg for Historical Data (Month 6)
+
+**Goal**: Reduce PostgreSQL costs, move old orders to object storage.
+
+```sql
+-- Hybrid: Recent in PostgreSQL, historical in Iceberg
+CREATE OR REPLACE VIEW ecommerce.orders AS
+-- Hot data: Last 90 days in PostgreSQL
+SELECT
+  CAST(order_id AS BIGINT) as order_id,
+  CAST(customer_id AS BIGINT) as customer_id,
+  CAST(total_amount AS DECIMAL(10,2)) as total,
+  CAST(order_status AS VARCHAR) as status,
+  CAST(created_at AS TIMESTAMP(3)) as created_at
+FROM postgresql.prod.orders
+WHERE created_at > CURRENT_DATE - INTERVAL '90' DAYS
+  AND replicated = false
+
+UNION ALL
+
+-- Cold data: Older than 90 days in Iceberg
+SELECT
+  CAST(order_id AS BIGINT) as order_id,
+  CAST(customer_id AS BIGINT) as customer_id,
+  CAST(total_amount AS DECIMAL(10,2)) as total,
+  CAST(order_status AS VARCHAR) as status,
+  CAST(created_at AS TIMESTAMP(3)) as created_at
+FROM iceberg.archive.orders
+WHERE created_at <= CURRENT_DATE - INTERVAL '90' DAYS;
+
+-- Application code STILL unchanged
+SELECT * FROM ecommerce.orders WHERE status = 'pending';
+```
+
+Behind the scenes, a replication job:
+1. Identifies orders > 90 days old
+2. Copies them to Iceberg
+3. Marks as `replicated = true` in PostgreSQL
+4. Eventually deletes from PostgreSQL (optional)
+
+#### Phase 5: Build View Hierarchy (Month 12)
+
+**Goal**: Add privacy layer, separate concerns, enable independent updates.
+
+```sql
+-- Layer 1: Entry point (application-facing)
+CREATE VIEW ecommerce.api.orders AS
+SELECT
+  order_id,
+  customer_id,
+  total,
+  status,
+  created_at,
+  -- Computed fields
+  date_trunc('day', created_at) as order_date,
+  CASE
+    WHEN status IN ('delivered') THEN 'complete'
+    WHEN status IN ('pending', 'processing', 'shipped') THEN 'active'
+    WHEN status IN ('cancelled', 'refunded') THEN 'closed'
+    ELSE 'other'
+  END as order_category
+FROM ecommerce.internal.orders_filtered;
+
+-- Layer 2: Privacy/security layer
+CREATE VIEW ecommerce.internal.orders_filtered AS
+SELECT
+  order_id, customer_id, total, status, created_at, tenant_id
+FROM ecommerce.internal.orders_merged
+WHERE
+  -- Tenant isolation
+  tenant_id = current_tenant_id()
+  -- Data retention (2 year policy)
+  AND created_at > CURRENT_DATE - INTERVAL '2' YEAR;
+
+-- Layer 3: Storage merger (unchanged from Phase 4)
+CREATE VIEW ecommerce.internal.orders_merged AS
+-- Hot data in PostgreSQL
+SELECT
+  CAST(order_id AS BIGINT) as order_id,
+  CAST(customer_id AS BIGINT) as customer_id,
+  CAST(total_amount AS DECIMAL(10,2)) as total,
+  CAST(order_status AS VARCHAR) as status,
+  CAST(created_at AS TIMESTAMP(3)) as created_at,
+  CAST(tenant_id AS BIGINT) as tenant_id
+FROM postgresql.prod.orders
+WHERE created_at > CURRENT_DATE - INTERVAL '90' DAYS
+  AND replicated = false
+UNION ALL
+-- Cold data in Iceberg
+SELECT
+  CAST(order_id AS BIGINT) as order_id,
+  CAST(customer_id AS BIGINT) as customer_id,
+  CAST(total_amount AS DECIMAL(10,2)) as total,
+  CAST(order_status AS VARCHAR) as status,
+  CAST(created_at AS TIMESTAMP(3)) as created_at,
+  CAST(tenant_id AS BIGINT) as tenant_id
+FROM iceberg.archive.orders
+WHERE created_at <= CURRENT_DATE - INTERVAL '90' DAYS;
+
+-- Update application to use new entry point
+SELECT * FROM ecommerce.api.orders WHERE status = 'pending';
+```
+
+#### View Dependency Diagram
+
+```mermaid
+flowchart TD
+    App[Application Code] --> Entry[ecommerce.api.orders<br/>Entry Layer<br/>Computed fields, categorization]
+    Entry --> Filter[ecommerce.internal.orders_filtered<br/>Privacy Layer<br/>Tenant isolation, retention policy]
+    Filter --> Merge[ecommerce.internal.orders_merged<br/>Merge Layer<br/>PostgreSQL + Iceberg union]
+    Merge --> PG[(PostgreSQL<br/>Hot Storage<br/>Last 90 days)]
+    Merge --> Ice[(Iceberg<br/>Cold Storage<br/>> 90 days)]
+
+    style Entry fill:#e1f5ff
+    style Filter fill:#ffe1e1
+    style Merge fill:#e1ffe1
+```
+
+#### Key Achievements
+
+Throughout this entire evolution:
+- Application code changed **once** (connection string in Phase 1)
+- All subsequent phases: zero application changes
+- No downtime during any transition
+- Rollback possible at any phase (just replace view)
+- Different teams own different layers
+- Infrastructure complexity completely hidden from application
+- Can add more layers later without disrupting existing layers
+
+This is the power of virtual view hierarchies.
+
+### Documentation and Tooling
+
+**Documenting Your Implementation**
 
 Create README in your repository:
 
@@ -1401,7 +1555,7 @@ See [view_dependencies.md] for visualization (generated by ViewMapper)
 5. Merge to main (auto-deploys to production Trino cluster)
 ```
 
-### Step 8: Set Up Dependency Mapping
+**Setting Up ViewMapper**
 
 Install and run ViewMapper:
 
@@ -1785,201 +1939,6 @@ ORDER BY event_count DESC;
 
 ---
 
-## Appendix: Complete Example
-
-### Scenario
-E-commerce application needs order data. Starts as prototype, moves to PostgreSQL, eventually adds Iceberg for historical orders.
-
-### Phase 1: Prototype (Week 1)
-
-**Goal**: Build UI and business logic before infrastructure exists.
-
-```sql
--- Static test data, no database needed
-CREATE VIEW ecommerce.orders AS
-SELECT * FROM (VALUES 
-  (1, 101, 50.00, 'pending', TIMESTAMP '2024-01-01 10:00:00'),
-  (2, 102, 75.00, 'shipped', TIMESTAMP '2024-01-01 11:00:00'),
-  (3, 101, 120.00, 'delivered', TIMESTAMP '2024-01-02 09:00:00')
-) AS t (order_id, customer_id, total, status, created_at);
-
--- Application code
-SELECT * FROM ecommerce.orders WHERE status = 'pending';
-```
-
-UI development, business logic tests, stakeholder demos all work with this mock data.
-
-### Phase 2: PostgreSQL Development (Week 3)
-
-**Goal**: Connect to real database, validate with real data patterns.
-
-```sql
--- Swap to development PostgreSQL
-CREATE OR REPLACE VIEW ecommerce.orders AS
-SELECT 
-  CAST(order_id AS BIGINT) as order_id,
-  CAST(customer_id AS BIGINT) as customer_id,
-  CAST(total_amount AS DECIMAL(10,2)) as total,
-  CAST(order_status AS VARCHAR) as status,
-  CAST(created_at AS TIMESTAMP(3)) as created_at
-FROM postgresql.dev.orders;
-
--- Application code unchanged
-SELECT * FROM ecommerce.orders WHERE status = 'pending';
-```
-
-### Phase 3: PostgreSQL Production (Week 8)
-
-**Goal**: Launch to customers.
-
-```sql
--- Point to production database
-CREATE OR REPLACE VIEW ecommerce.orders AS
-SELECT 
-  CAST(order_id AS BIGINT) as order_id,
-  CAST(customer_id AS BIGINT) as customer_id,
-  CAST(total_amount AS DECIMAL(10,2)) as total,
-  CAST(order_status AS VARCHAR) as status,
-  CAST(created_at AS TIMESTAMP(3)) as created_at
-FROM postgresql.prod.orders;
-
--- Application code still unchanged
-SELECT * FROM ecommerce.orders WHERE status = 'pending';
-```
-
-### Phase 4: Add Iceberg for Historical Data (Month 6)
-
-**Goal**: Reduce PostgreSQL costs, move old orders to object storage.
-
-```sql
--- Hybrid: Recent in PostgreSQL, historical in Iceberg
-CREATE OR REPLACE VIEW ecommerce.orders AS
--- Hot data: Last 90 days in PostgreSQL
-SELECT 
-  CAST(order_id AS BIGINT) as order_id,
-  CAST(customer_id AS BIGINT) as customer_id,
-  CAST(total_amount AS DECIMAL(10,2)) as total,
-  CAST(order_status AS VARCHAR) as status,
-  CAST(created_at AS TIMESTAMP(3)) as created_at
-FROM postgresql.prod.orders
-WHERE created_at > CURRENT_DATE - INTERVAL '90' DAYS
-  AND replicated = false
-
-UNION ALL
-
--- Cold data: Older than 90 days in Iceberg
-SELECT 
-  CAST(order_id AS BIGINT) as order_id,
-  CAST(customer_id AS BIGINT) as customer_id,
-  CAST(total_amount AS DECIMAL(10,2)) as total,
-  CAST(order_status AS VARCHAR) as status,
-  CAST(created_at AS TIMESTAMP(3)) as created_at
-FROM iceberg.archive.orders
-WHERE created_at <= CURRENT_DATE - INTERVAL '90' DAYS;
-
--- Application code STILL unchanged
-SELECT * FROM ecommerce.orders WHERE status = 'pending';
-```
-
-Behind the scenes, a replication job:
-1. Identifies orders > 90 days old
-2. Copies them to Iceberg
-3. Marks as `replicated = true` in PostgreSQL
-4. Eventually deletes from PostgreSQL (optional)
-
-### Phase 5: Build View Hierarchy (Month 12)
-
-**Goal**: Add privacy layer, separate concerns, enable independent updates.
-
-```sql
--- Layer 1: Entry point (application-facing)
-CREATE VIEW ecommerce.api.orders AS
-SELECT 
-  order_id,
-  customer_id,
-  total,
-  status,
-  created_at,
-  -- Computed fields
-  date_trunc('day', created_at) as order_date,
-  CASE 
-    WHEN status IN ('delivered') THEN 'complete'
-    WHEN status IN ('pending', 'processing', 'shipped') THEN 'active'
-    WHEN status IN ('cancelled', 'refunded') THEN 'closed'
-    ELSE 'other'
-  END as order_category
-FROM ecommerce.internal.orders_filtered;
-
--- Layer 2: Privacy/security layer
-CREATE VIEW ecommerce.internal.orders_filtered AS
-SELECT 
-  order_id, customer_id, total, status, created_at, tenant_id
-FROM ecommerce.internal.orders_merged
-WHERE 
-  -- Tenant isolation
-  tenant_id = current_tenant_id()
-  -- Data retention (2 year policy)
-  AND created_at > CURRENT_DATE - INTERVAL '2' YEAR;
-
--- Layer 3: Storage merger (unchanged from Phase 4)
-CREATE VIEW ecommerce.internal.orders_merged AS
--- Hot data in PostgreSQL
-SELECT 
-  CAST(order_id AS BIGINT) as order_id,
-  CAST(customer_id AS BIGINT) as customer_id,
-  CAST(total_amount AS DECIMAL(10,2)) as total,
-  CAST(order_status AS VARCHAR) as status,
-  CAST(created_at AS TIMESTAMP(3)) as created_at,
-  CAST(tenant_id AS BIGINT) as tenant_id
-FROM postgresql.prod.orders
-WHERE created_at > CURRENT_DATE - INTERVAL '90' DAYS
-  AND replicated = false
-UNION ALL
--- Cold data in Iceberg
-SELECT 
-  CAST(order_id AS BIGINT) as order_id,
-  CAST(customer_id AS BIGINT) as customer_id,
-  CAST(total_amount AS DECIMAL(10,2)) as total,
-  CAST(order_status AS VARCHAR) as status,
-  CAST(created_at AS TIMESTAMP(3)) as created_at,
-  CAST(tenant_id AS BIGINT) as tenant_id
-FROM iceberg.archive.orders
-WHERE created_at <= CURRENT_DATE - INTERVAL '90' DAYS;
-
--- Update application to use new entry point
-SELECT * FROM ecommerce.api.orders WHERE status = 'pending';
-```
-
-### View Dependency Diagram
-
-```mermaid
-flowchart TD
-    App[Application Code] --> Entry[ecommerce.api.orders<br/>Entry Layer<br/>Computed fields, categorization]
-    Entry --> Filter[ecommerce.internal.orders_filtered<br/>Privacy Layer<br/>Tenant isolation, retention policy]
-    Filter --> Merge[ecommerce.internal.orders_merged<br/>Merge Layer<br/>PostgreSQL + Iceberg union]
-    Merge --> PG[(PostgreSQL<br/>Hot Storage<br/>Last 90 days)]
-    Merge --> Ice[(Iceberg<br/>Cold Storage<br/>> 90 days)]
-    
-    style Entry fill:#e1f5ff
-    style Filter fill:#ffe1e1
-    style Merge fill:#e1ffe1
-```
-
-### Key Achievements
-
-Throughout this entire evolution:
-- Application code changed **once** (connection string in Phase 1)
-- All subsequent phases: zero application changes
-- No downtime during any transition
-- Rollback possible at any phase (just replace view)
-- Different teams own different layers
-- Infrastructure complexity completely hidden from application
-- Can add more layers later without disrupting existing layers
-
-This is the power of virtual view hierarchies.
-
----
-
 ## License
 
 **Copyright**: © 2025 by Rob Dickinson (robfromboulder)
@@ -2000,5 +1959,5 @@ To the extent possible under law, the author has waived all copyright and relate
 
 ---
 
-**Version**: 0.51
+**Version**: 0.52
 **Last Updated**: 2025-12-16
