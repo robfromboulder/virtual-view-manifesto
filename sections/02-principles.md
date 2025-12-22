@@ -344,7 +344,7 @@ GROUP BY date_trunc('month', order_date);
 - Consider using `SECURITY DEFINER` only for controlled privilege escalation with strong justification
 
 >[!TIP]
-> Trino's default behavior may vary by connector. Always specify explicitly.
+> Trino's default behavior may vary by connector. Always specify explicitly, like all our examples.
 
 ---
 
