@@ -1,5 +1,11 @@
 # Change Log
 
+## Version 0.61 (2025-12-21)
+- **Fixed section file formatting for IntelliJ IDEA compatibility**
+- All section files now start with empty line before `---` delimiter
+- Fixes Structure view navigation and syntax highlighting for IDEA
+- No impact on build.sh output; purely for editor compatibility
+
 ## Version 0.60 (2025-12-21)
 - **Refactored README into modular section files** for improved maintainability
 - Created 10 section files in `sections/` directory (00-header through 09-footer)

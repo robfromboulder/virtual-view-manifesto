@@ -32,9 +32,6 @@ for section in "${SECTION_FILES[@]}"; do
 
     # Add section content
     cat "$file" >> "$TEMP_FILE"
-
-    # Add blank line separator
-    echo "" >> "$TEMP_FILE"
 done
 
 # Move to final location

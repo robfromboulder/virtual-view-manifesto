@@ -16,7 +16,7 @@ This is a technical manifesto about virtual view hierarchies in SQL databases, w
 
 ## 📝 Current Status
 
-**Version**: 0.60 (Draft)
+**Version**: 0.61 (Draft)
 **Last Updated**: 2025-12-21
 **Status**: Work in progress, refactored into modular section files
 **Next Milestone**: 1.0 release after incorporating feedback
@@ -99,6 +99,7 @@ git commit -m "Update Principle 5 with new example"
 
 **File start:**
 ```
+<blank line>
 ---
 <blank line>
 ## Section Title
@@ -111,7 +112,7 @@ git commit -m "Update Principle 5 with new example"
 <blank line>
 ```
 
-This convention ensures clean separation when files are concatenated and makes the structure easier to maintain. The `00-header.md` file is the exception since it contains the document preamble and doesn't need the leading delimiter.
+This convention ensures clean separation when files are concatenated and makes the structure easier to maintain. The leading blank line before `---` is required for IntelliJ IDEA compatibility (fixes syntax highlighting and Structure view). The `00-header.md` file is the exception since it contains the document preamble and doesn't need the leading delimiter.
 
 ### Information Flow Best Practices
 
