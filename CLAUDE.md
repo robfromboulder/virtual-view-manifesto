@@ -16,7 +16,7 @@ This is a technical manifesto about virtual view hierarchies in SQL databases, w
 
 ## 📝 Current Status
 
-**Version**: 0.61 (Draft)
+**Version**: 0.62 (Draft)
 **Last Updated**: 2025-12-21
 **Status**: Work in progress, refactored into modular section files
 **Next Milestone**: 1.0 release after incorporating feedback

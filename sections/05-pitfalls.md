@@ -131,8 +131,8 @@ SELECT * FROM myapp.users.all;  -- Fails with permission error
 ```
 
 **Solution**:
-- Use `SECURITY INVOKER` and grant underlying permissions
-- Or use `SECURITY DEFINER` intentionally for controlled privilege escalation
+- Use `SECURITY INVOKER` explicitly and grant underlying permissions
+- Only use `SECURITY DEFINER` intentionally for controlled privilege escalation
 - Document permission requirements clearly in view comments
 
 ```sql

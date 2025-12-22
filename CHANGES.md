@@ -1,5 +1,10 @@
 # Change Log
 
+## Version 0.62 (2025-12-21)
+- **Fixed SECURITY INVOKER in Python code examples**
+- Affected Use Case 2 (Testing Data Edge Cases) and Use Case 5 (Runtime Configuration)
+- Ensures consistency with SECURITY INVOKER convention across all example types
+
 ## Version 0.61 (2025-12-21)
 - **Fixed section file formatting for IntelliJ IDEA compatibility**
 - All section files now start with empty line before `---` delimiter

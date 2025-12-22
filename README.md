@@ -779,7 +779,7 @@ def configure_test_mode(config):
     
     if config.test_mode == 'edge_cases':
         execute_sql("""
-            CREATE OR REPLACE VIEW myapp.payment_gateway AS
+            CREATE OR REPLACE VIEW myapp.payment_gateway SECURITY INVOKER AS
             SELECT * FROM (VALUES
               ('timeout', 'TIMEOUT', NULL),
               ('decline', 'DECLINED', 'Insufficient funds'),
@@ -788,7 +788,7 @@ def configure_test_mode(config):
         """)
     elif config.test_mode == 'production':
         execute_sql("""
-            CREATE OR REPLACE VIEW myapp.payment_gateway AS
+            CREATE OR REPLACE VIEW myapp.payment_gateway SECURITY INVOKER AS
             SELECT transaction_id, status, error_message
             FROM payments_api.transactions
         """)
@@ -986,19 +986,19 @@ def configure_data_layer(config):
     if config.feature_flags.get('use_iceberg'):
         # Production with Iceberg
         execute_sql("""
-            CREATE OR REPLACE VIEW myapp.events.all AS
+            CREATE OR REPLACE VIEW myapp.events.all SECURITY INVOKER AS
             SELECT * FROM iceberg.warehouse.events
         """)
     elif config.environment == 'staging':
         # Staging database
         execute_sql("""
-            CREATE OR REPLACE VIEW myapp.events.all AS
+            CREATE OR REPLACE VIEW myapp.events.all SECURITY INVOKER AS
             SELECT * FROM postgresql.staging.events
         """)
     elif config.environment == 'development':
         # Static test data
         execute_sql("""
-            CREATE OR REPLACE VIEW myapp.events.all AS
+            CREATE OR REPLACE VIEW myapp.events.all SECURITY INVOKER AS
             SELECT * FROM (VALUES
               (1, 'test', CURRENT_TIMESTAMP)
             ) AS t (id, event, ts)
@@ -1006,7 +1006,7 @@ def configure_data_layer(config):
     else:
         # Production PostgreSQL
         execute_sql("""
-            CREATE OR REPLACE VIEW myapp.events.all AS
+            CREATE OR REPLACE VIEW myapp.events.all SECURITY INVOKER AS
             SELECT * FROM postgresql.prod.events
         """)
 
@@ -1682,8 +1682,8 @@ SELECT * FROM myapp.users.all;  -- Fails with permission error
 ```
 
 **Solution**:
-- Use `SECURITY INVOKER` and grant underlying permissions
-- Or use `SECURITY DEFINER` intentionally for controlled privilege escalation
+- Use `SECURITY INVOKER` explicitly and grant underlying permissions
+- Only use `SECURITY DEFINER` intentionally for controlled privilege escalation
 - Document permission requirements clearly in view comments
 
 ```sql
@@ -1955,5 +1955,5 @@ To the extent possible under law, the author has waived all copyright and relate
 
 ---
 
-**Version**: 0.61
+**Version**: 0.62
 **Last Updated**: 2025-12-21
