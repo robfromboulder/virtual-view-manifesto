@@ -2,9 +2,9 @@
 
 **Project**: The Virtual View Manifesto
 **Author**: Rob Dickinson (robfromboulder)
-**Current Version**: 0.60
-**Last Updated**: 2025-12-21
-**Document Length**: ~1963 lines / ~9,000 words
+**Primary File**: `README.md` (generated from section files)
+**Output Format**: Markdown with Mermaid diagrams for GitHub rendering
+**Related Tools**: ViewMapper and ViewZoo (Apache 2 licensed projects by Rob)
 
 ---
 
@@ -12,13 +12,53 @@
 
 This is a technical manifesto about virtual view hierarchies in SQL databases, with Trino as the reference implementation. The document is published as part of Rob's GitHub portfolio and is intended to establish a repeatable architectural pattern for the data engineering community.
 
-**Primary File**: `README.md` (the complete manifesto)
-**Output Format**: Markdown with Mermaid diagrams for GitHub rendering
-**Related Tools**: ViewMapper and ViewZoo (Apache 2 licensed projects by Rob)
+---
+
+## 📝 Current Status
+
+**Version**: 0.60 (Draft)
+**Last Updated**: 2025-12-21
+**Status**: Work in progress, refactored into modular section files
+**Next Milestone**: 1.0 release after incorporating feedback
+**Entire document is open for review**
 
 ---
 
-## 📐 Document Structure Quick Reference
+## 👥 Target Audience
+
+- **Primary**: Trino users (full-stack engineers, application architects, big-data practitioners)
+- **Secondary**: Everyone else interested in SQL view patterns
+- **Assumptions**: Familiar with SQL views but may not have thought about them architecturally
+- **Needs**: Practical guidance, not academic theory
+- **Appreciation**: Technical detail and concrete examples
+- **Focus**: Keep content optimized for Trino users first
+
+---
+
+## 📋 Success Criteria
+
+The manifesto is successful if readers:
+
+1. ✅ Understand virtual views as architectural pattern, not just database or Trino-specific feature
+2. ✅ Can implement basic prototyping → testing → production progression
+3. ✅ Know when to use (and not use) the pattern
+4. ✅ Understand the eight principles and why they matter
+5. ✅ Have links to ViewMapper and ViewZoo for implementation
+
+---
+
+## 🤖 Collaboration Preferences
+
+**Priority order for all work**:
+1. **Accuracy and terminology consistency** (paramount)
+2. **Conciseness and logical flow** (next priority)
+3. **Creativity** (only when specifically requested)
+
+**Always validate Mermaid diagrams** when making changes to ensure they render correctly.
+
+---
+
+## 📐 Document Structure
 
 The README is generated from section files in `sections/`. When editing:
 
@@ -36,16 +76,22 @@ Section-to-content mapping:
 9. **Glossary** (`08-glossary.md`): Technical term definitions
 10. **Footer** (`09-footer.md`): License, thanks, metadata
 
----
+### Build Workflow
 
-## 🔨 Working with Split README
+```bash
+# Edit a section file
+vi sections/02-principles.md
 
-The README.md is generated from section files. When editing:
+# Rebuild README
+./build.sh
 
-1. **Edit files in `sections/` directory** - NOT README.md directly
-2. **Run `./build.sh` to rebuild** after making changes
-3. **Review changes using diff tools** to verify correctness
-4. **Commit both section files AND generated README.md** together
+# Verify the changes
+git diff README.md
+
+# Commit both the section and generated README
+git add sections/02-principles.md README.md
+git commit -m "Update Principle 5 with new example"
+```
 
 ### Section File Formatting Convention
 
@@ -67,22 +113,14 @@ The README.md is generated from section files. When editing:
 
 This convention ensures clean separation when files are concatenated and makes the structure easier to maintain. The `00-header.md` file is the exception since it contains the document preamble and doesn't need the leading delimiter.
 
-### Build Workflow
+### Information Flow Best Practices
 
-```bash
-# Edit a section file
-vi sections/02-principles.md
-
-# Rebuild README
-./build.sh
-
-# Verify the changes
-git diff README.md
-
-# Commit both the section and generated README
-git add sections/02-principles.md README.md
-git commit -m "Update Principle 5 with new example"
-```
+- Place context/setup paragraphs BEFORE examples (not after)
+- Position diagrams early to visualize concepts immediately
+- Remove redundant subsections when content is already covered elsewhere
+- Ensure diagram elements match surrounding text (e.g., if diagram shows demo/test data, mention it)
+- Make example headers consistent ("Example of..." pattern)
+- Use GitHub callout boxes (> [!CAUTION], > [!TIP]) for important warnings and tips
 
 ### Important Notes
 
@@ -92,20 +130,10 @@ git commit -m "Update Principle 5 with new example"
 
 ---
 
-## 👥 Target Audience
+## ✍️ Writing & Style Guide
 
-- **Primary**: Trino users (full-stack engineers, application architects, big-data practitioners)
-- **Secondary**: Everyone else interested in SQL view patterns
-- **Assumptions**: Familiar with SQL views but may not have thought about them architecturally
-- **Needs**: Practical guidance, not academic theory
-- **Appreciation**: Technical detail and concrete examples
-- **Focus**: Keep content optimized for Trino users first
+### Voice & Tone
 
----
-
-## ✍️ Tone and Voice Requirements
-
-### Voice Characteristics
 - **Strongly opinionated but not fundamentalist**
 - **Plain language and simple sentence construction**
 - Use Rob's natural speaking voice (casual, practical, not overly formal)
@@ -115,29 +143,15 @@ git commit -m "Update Principle 5 with new example"
 - **Clean and precise as a manifesto** - humor is welcome but shouldn't distract or add complexity
 - **Humor and emojis**: Use sparingly, only when payoff is obvious
 
-### Rob's Natural Speaking Patterns
-Examples from transcription:
-- "This ends up being really, really useful"
-- "That's kind of the theory"
-- "Let me give you a very concrete set of examples"
-- "This is a yawner, right?"
-- "That's pretty cool"
-- Occasional emoji in written form (but don't overuse)
-- Technical but accessible
-- Acknowledges simplifications ("admittedly a simplification")
-
 ### Editorial Standards
+
 - Be honest about limitations
 - Openly recognize constraints and other potential points of view
 - Pragmatic over dogmatic
 - When in doubt: simpler is better
 - **Never use em dashes (—)**: They cause formatting issues with web content and signal AI-generated text to readers. Use commas instead, extending sentences naturally without colons or dashes as breaks
 
----
-
-## 📝 Word Choice Guidelines
-
-Preferred terminology (and why):
+### Preferred Terminology
 
 | Use | Instead of | Reason |
 |-----|-----------|--------|
@@ -147,60 +161,26 @@ Preferred terminology (and why):
 | Application catalog | Feature catalog | Either works, depends on context |
 | Federation | Data virtualization | More concrete |
 
----
+### Content Standards
 
-## 📋 Success Criteria
+**Scope and Emphasis**:
+1. **Scope**: Concepts apply to any database, but Trino is reference implementation due to federation capabilities
+2. **Audience assumptions**: Brief primer on classical views included for contrast
+3. **Dogmatism level**: Strongly opinionated but pragmatic
+4. **Example complexity**: Both simple and realistic for each major point
 
-The manifesto is successful if readers:
+**Use Case Selection Criteria**:
+- **Focus on the virtual view pattern**, not just Trino capabilities
+- Ask: "Does this demonstrate something you *couldn't easily do* without virtual views?"
+- **Avoid use cases that are just Trino features** (e.g., "Cross-Database Federation" showcases Trino's federation but doesn't highlight the swappability/versioning that makes virtual views unique)
+- Good use cases demonstrate: swappable implementations, independent layer evolution, static-to-live progressions, runtime reconfiguration
+- Each use case should show a problem that virtual views solve better than alternatives
 
-1. ✅ Understand virtual views as architectural pattern, not just database feature
-2. ✅ Can implement basic prototyping → production progression
-3. ✅ Know when to use (and not use) the pattern
-4. ✅ Can plan Iceberg migration using virtual views
-5. ✅ Understand the eight principles and why they matter
-6. ✅ Have links to ViewMapper and ViewZoo for implementation
-
----
-
-## 🔗 Related Projects
-
-Always include these links where relevant:
-
-- **ViewMapper**: [github.com/robfromboulder/viewmapper](https://github.com/robfromboulder/viewmapper)
-  (Agentic schema mapper for Trino views)
-
-- **ViewZoo**: [github.com/robfromboulder/viewzoo](https://github.com/robfromboulder/viewzoo)
-  (Lightweight storage for Trino views)
-
-Both are Apache 2 licensed, created by Rob.
-
----
-
-## 🔄 Revision Workflow
-
-### When Making Content Changes
-
-1. **Check prose consistency and flow**
-2. **Ensure examples are clear and compelling**
-3. **Verify Mermaid diagrams render correctly** (use GitHub preview)
-4. **Check that all cross-references work** (anchors, links, section references)
-5. **Verify tone consistency** (technical but accessible, opinionated but pragmatic)
-6. **Update version metadata** at bottom of README:
-   - Bump version number (e.g., 0.1 → 0.2 for minor, 1.0 for major)
-   - Update "Last Updated" date
-
-### When Making Major Changes
-
-**IMPORTANT**: When making substantial revisions to the manifesto structure, voice, or strategy:
-
-1. **Update this CLAUDE.md file** to reflect new patterns or preferences
-2. **Document new section structures** in the "Document Structure Quick Reference"
-3. **Add new terminology** to word choice guidelines if needed
-4. **Update success criteria** if goals change
-5. **Update line numbers** when new content has been reviewed and is ready to commit
-6. **Commit CLAUDE.md changes** alongside README changes
-
-This ensures future Claude sessions have the most current context.
+**Example Structure Pattern**:
+1. **Simple example** (3-10 lines of SQL)
+2. **Realistic example** (20-50 lines showing production complexity)
+3. **Explanation** (why it matters, when to use it)
+4. **Visual** (Mermaid diagram when helpful)
 
 ---
 
@@ -230,171 +210,59 @@ This ensures future Claude sessions have the most current context.
 **CRITICAL**: All SQL examples must follow the three-level naming convention consistently throughout the document.
 
 **Physical tables** (connector.schema.table):
-- ✅ `postgresql.myapp.users`
-- ✅ `postgresql.myapp.orders`
-- ✅ `iceberg.myapp.events`
-- ❌ `postgresql.users` (missing schema)
-- ❌ `postgresql.app.users` (should be `myapp` to match catalog)
+- ✅ `postgresql.myapp.users`, `postgresql.myapp.orders`, `iceberg.myapp.events`
+- ❌ `postgresql.users` (missing schema), `postgresql.app.users` (wrong schema name)
 
 **Virtual views** (catalog.schema.view):
-- ✅ `myapp.users.all`
-- ✅ `myapp.orders.pending`
-- ✅ `myapp.events.base`
-- ❌ `myapp.users` (missing view name, only two levels)
-- ❌ `myapp.all_users` (use feature schema: `users.all`)
+- ✅ `myapp.users.all`, `myapp.orders.pending`, `myapp.events.base`
+- ❌ `myapp.users` (missing view name), `myapp.all_users` (use feature schema)
 
 **Schema → Catalog transformation pattern**:
-The examples should reinforce that the physical schema name becomes the catalog name:
 - **Before (physical)**: `postgresql.myapp.users` - `myapp` is a schema in PostgreSQL
 - **After (virtual)**: `myapp.users.all` - `myapp` is promoted to a catalog, `users` is a feature schema
 
-**Feature-based organization**:
-- Second level (schema) should represent features or domains
-- Common patterns: `myapp.users.*`, `myapp.orders.*`, `myapp.events.*`, `myapp.products.*`
-- Avoid generic names like `myapp.data.*` in examples unless specifically showing generic setup
-
-**View naming patterns**:
+**Common naming patterns**:
 - `.all` - Common entry point (e.g., `myapp.users.all`)
 - `.base` - Base layer in hierarchy
 - `.merged` - Merge layer combining sources
 - `.filtered` - Privacy/filtering layer
 - `.enriched` - Transformation layer
-
-**Internal schemas**:
 - Use `myapp.internal.*` for multi-layer hierarchies when demonstrating layer separation
-- Keep simple examples within feature schemas (e.g., `myapp.users.base` rather than `myapp.internal.users_base`)
 
-**Consistency across document sections**:
-- All Principles examples must follow these conventions
-- All Use Cases examples must follow these conventions
-- All Implementation Guide examples must follow these conventions
-- All Pitfall examples must follow these conventions
-- Mermaid diagrams must use fully qualified names (three levels)
-
-**Why this matters**:
-- Teaches the transformation pattern: schema → catalog
-- Makes the abstraction crystal clear
-- Shows readers exactly how to structure their own implementations
-- Every example reinforces the same mental model
-- Readers learn by repetition and consistency
+**Why this matters**: Teaches the transformation pattern, makes abstraction crystal clear, shows readers exactly how to structure their own implementations. Every example reinforces the same mental model.
 
 ---
 
-## 🔍 Content Guidelines
+## 🔄 Revision Workflow
 
-### Scope and Emphasis
-1. **Scope**: Concepts apply to any database, but Trino is reference implementation due to federation capabilities
-2. **Audience assumptions**: Brief primer on classical views included for contrast
-3. **Dogmatism level**: Strongly opinionated but pragmatic
-4. **Example complexity**: Both simple and realistic for each major point
-5. **Iceberg emphasis**: Primary motivating use case, integrated throughout but not separate section
+### When Making Content Changes
 
-### Use Case Selection Criteria
-When considering new use cases or examples:
-- **Focus on the virtual view pattern**, not just Trino capabilities
-- Ask: "Does this demonstrate something you *couldn't easily do* without virtual views?"
-- **Avoid use cases that are just Trino features** (e.g., "Cross-Database Federation" showcases Trino's federation but doesn't highlight the swappability/versioning that makes virtual views unique)
-- Good use cases demonstrate: swappable implementations, independent layer evolution, static-to-live progressions, runtime reconfiguration
-- Each use case should show a problem that virtual views solve better than alternatives
+1. **Check prose consistency and flow**
+2. **Ensure examples are clear and compelling**
+3. **Verify Mermaid diagrams render correctly** (use GitHub preview)
+4. **Check that all cross-references work** (anchors, links, section references)
+5. **Verify tone consistency** (technical but accessible, opinionated but pragmatic)
+6. **Update version metadata** in footer section (09-footer.md):
+   - Bump version number (e.g., 0.1 → 0.2 for minor, 1.0 for major)
+   - Update "Last Updated" date
 
-### Example Structure Pattern
-For each major principle or use case:
-1. **Simple example** (3-10 lines of SQL)
-2. **Realistic example** (20-50 lines showing production complexity)
-3. **Explanation** (why it matters, when to use it)
-4. **Visual** (Mermaid diagram when helpful)
+### When Making Major Changes
+
+When making substantial revisions to the manifesto structure, voice, or strategy, update this CLAUDE.md file accordingly (terminology table, success criteria, document structure).
 
 ---
 
-## 🤖 Working With Claude Code
+## 🔗 Related Projects
 
-### Collaboration Preferences
+Always include these links where relevant:
 
-**Rob prefers complete drafts** - changes in one section often affect other sections, and Rob has good diff tools to review complete changes.
+- **ViewMapper**: [github.com/robfromboulder/viewmapper](https://github.com/robfromboulder/viewmapper)
+  (Agentic schema mapper for Trino views)
 
-**Priority order for all work**:
-1. **Accuracy and terminology consistency** (paramount)
-2. **Conciseness and logical flow** (next priority)
-3. **Creativity** (only when specifically requested)
+- **ViewZoo**: [github.com/robfromboulder/viewzoo](https://github.com/robfromboulder/viewzoo)
+  (Lightweight storage for Trino views)
 
-**Always validate Mermaid diagrams** when making changes to ensure they render correctly.
-
-**Proactive suggestions welcome** for:
-- More consistent use of technical terms
-- More accurate terminology
-- Structural improvements
-
-### Optimizations for Large Document Processing
-
-**The README is ~9,700 words** (significantly streamlined from original ~70K). When working with it:
-
-1. **Provide complete drafts**: When making changes, provide the full updated content
-2. **Reference by section name**: "Update the Principle 5 section" rather than "update lines 450-531"
-3. **Use Edit tool strategically**: For precise changes, but be prepared to show complete context
-4. **Validate cross-references**: When editing one section, check if other sections reference it
-5. **Check the ToC**: Update Table of Contents if adding/removing/renaming sections
-
-### Common Editing Patterns
-
-**Adding a new example**:
-- Identify the section
-- Read that section only
-- Add example following the simple → realistic pattern
-- Verify it fits the voice and tone
-
-**Restructuring a section**:
-- Read the full section first
-- Make an edit plan
-- Update content
-- Check cross-references from other sections
-- Update ToC if section name changed
-
-**Adding a new principle/use case/pattern**:
-- Determine where it fits in the hierarchy
-- Follow existing structural patterns
-- Add to ToC
-- Add cross-references from relevant sections
-- Generate Mermaid diagram if applicable
-
-**Improving information flow**:
-- Place context/setup paragraphs BEFORE examples (not after)
-- Position diagrams early to visualize concepts immediately
-- Remove redundant subsections when content is already covered elsewhere
-- Ensure diagram elements match surrounding text (e.g., if diagram shows demo/test data, mention it)
-- Make example headers consistent ("Example of..." pattern)
-- Use GitHub callout boxes (> [!CAUTION], > [!TIP]) for important warnings and tips
-
----
-
-## 📝 Current Status
-
-**Version**: 0.60 (Draft)
-**Status**: Work in progress, refactored into modular section files
-**Next Milestone**: 1.0 release after incorporating feedback
-**Entire document is open for review**
-
----
-
-## 📌 Quick Command Reference
-
-When you ask Claude to work on this project, you can use these shortcuts:
-
-- **"Update Principle N"**: Edit specific principle section
-- **"Add example to Use Case N"**: Add new example to use case section
-- **"Review tone in [section]"**: Check voice consistency
-- **"Verify all Mermaid diagrams"**: Test diagram rendering
-- **"Check cross-references"**: Validate all internal links
-- **"Bump version"**: Update version and date metadata
-- **"Update CLAUDE.md"**: Update this file with new patterns/preferences
-
----
-
-## 🔖 Notes
-
-- This is a living document that should be updated as the manifesto evolves
-- Claude should treat this file as the source of truth for how to collaborate on the manifesto
-- When in doubt about tone, style, or structure, refer to this guide
-- Rob may add notes or preferences here over time—always check for updates
+Both are Apache 2 licensed, created by Rob.
 
 ---
 
