@@ -1,5 +1,16 @@
 # Change Log
 
+## Version 0.60 (2025-12-21)
+- **Refactored README into modular section files** for improved maintainability
+- Created 10 section files in `sections/` directory (00-header through 09-footer)
+- Added `build.sh` script to generate README.md from section files
+- Updated `.claudeignore` to exclude generated README.md from context loading
+- Section files are now the source of truth for all edits
+- Added section file formatting convention (consistent delimiters and spacing)
+- Updated CLAUDE.md with build workflow documentation
+- No content changes; purely structural refactoring
+- Document remains at ~1963 lines, ~9,000 words
+
 ## Version 0.53 (2025-12-18)
 - **Improved examples and diagrams** throughout the document for clarity and consistency
 - Enhanced Mermaid diagrams with better formatting and visual clarity
