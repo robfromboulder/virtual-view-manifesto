@@ -22,7 +22,7 @@
 **Simple example**:
 ```sql
 -- Day 1: No database yet, use static data
-CREATE VIEW myapp.customers.all AS
+CREATE VIEW myapp.customers.all SECURITY INVOKER AS
 SELECT * FROM (VALUES
   (1, 'Acme Corp', 'acme@example.com'),
   (2, 'Widgets Inc', 'widgets@example.com'),
@@ -33,7 +33,7 @@ SELECT * FROM (VALUES
 -- UI, business logic, tests all work against this view
 
 -- Day 30: Database ready, swap in real data
-CREATE OR REPLACE VIEW myapp.customers.all AS
+CREATE OR REPLACE VIEW myapp.customers.all SECURITY INVOKER AS
 SELECT
   CAST(id AS BIGINT) as customer_id,
   CAST(name AS VARCHAR) as company_name,
@@ -50,7 +50,7 @@ FROM postgresql.myapp.customers;
 -- Some tables don't exist yet, some APIs not ready
 
 -- Start with mock data for all sources
-CREATE VIEW analytics.reports.customer_lifetime_value AS
+CREATE VIEW analytics.reports.customer_lifetime_value SECURITY INVOKER AS
 SELECT
   customer_id,
   SUM(order_total) as lifetime_value,
@@ -69,7 +69,7 @@ GROUP BY customer_id;
 -- Only implement real data pipelines after prototype is approved
 
 -- Later: Swap to real, complex query
-CREATE OR REPLACE VIEW analytics.reports.customer_lifetime_value AS
+CREATE OR REPLACE VIEW analytics.reports.customer_lifetime_value SECURITY INVOKER AS
 SELECT
   c.customer_id,
   SUM(o.total) as lifetime_value,
@@ -119,7 +119,7 @@ gantt
 **Simple example**:
 ```sql
 -- Production view
-CREATE VIEW myapp.products.all AS
+CREATE VIEW myapp.products.all SECURITY INVOKER AS
 SELECT
   CAST(product_id AS BIGINT) as product_id,
   CAST(name AS VARCHAR) as name,
@@ -128,7 +128,7 @@ SELECT
 FROM postgresql.myapp.products;
 
 -- Test view with edge cases
-CREATE OR REPLACE VIEW myapp.products.all AS
+CREATE OR REPLACE VIEW myapp.products.all SECURITY INVOKER AS
 SELECT * FROM (VALUES
   (1, 'Normal Product', 10.00, 100),
   (2, 'Zero Price', 0.00, 50),          -- Edge case
@@ -222,7 +222,7 @@ configure_test_mode(current_config)
 -- postgresql.myapp.users_v1 (columns: userid, fname, lname, addr)
 
 -- Virtual view provides better names
-CREATE VIEW myapp.users.all AS
+CREATE VIEW myapp.users.all SECURITY INVOKER AS
 SELECT
   userid as user_id,
   fname as first_name,
@@ -234,7 +234,7 @@ FROM postgresql.myapp.users_v1;
 -- postgresql.myapp.users_v2 (columns: user_id, first_name, last_name, street_address)
 
 -- Update view, application unchanged
-CREATE OR REPLACE VIEW myapp.users.all AS
+CREATE OR REPLACE VIEW myapp.users.all SECURITY INVOKER AS
 SELECT
   user_id,
   first_name,
@@ -246,7 +246,7 @@ FROM postgresql.myapp.users_v2;
 **Realistic example with backward compatibility**:
 ```sql
 -- V1 schema: Monolithic user table
-CREATE VIEW myapp.users.all AS
+CREATE VIEW myapp.users.all SECURITY INVOKER AS
 SELECT
   CAST(user_id AS BIGINT) as user_id,
   CAST(email AS VARCHAR) as email,
@@ -260,7 +260,7 @@ FROM postgresql.myapp.users_v1;
 
 -- V2 schema: Normalized into users + addresses tables
 -- Keep backward compatibility during migration
-CREATE OR REPLACE VIEW myapp.users.all AS
+CREATE OR REPLACE VIEW myapp.users.all SECURITY INVOKER AS
 SELECT
   CAST(u.user_id AS BIGINT) as user_id,
   CAST(u.email AS VARCHAR) as email,
@@ -276,7 +276,7 @@ LEFT JOIN postgresql.myapp.addresses_v2 a
   AND a.is_primary = true;
 
 -- V3 schema: Changed email validation, need to handle legacy bad data
-CREATE OR REPLACE VIEW myapp.users.all AS
+CREATE OR REPLACE VIEW myapp.users.all SECURITY INVOKER AS
 SELECT
   CAST(u.user_id AS BIGINT) as user_id,
   CAST(
@@ -464,14 +464,14 @@ git checkout feature/iceberg-storage
 **Simple example**:
 ```sql
 -- Base data layer
-CREATE VIEW myapp.logs.raw AS
+CREATE VIEW myapp.logs.raw SECURITY INVOKER AS
 SELECT
   log_id, event_type, user_id,
   user_email, ip_address, event_time
 FROM postgresql.myapp.logs;
 
 -- Privacy layer (redact PII except for admins)
-CREATE VIEW myapp.logs.all AS
+CREATE VIEW myapp.logs.all SECURITY INVOKER AS
 SELECT
   log_id, event_type, user_id,
   -- Redact email and IP unless admin
@@ -487,14 +487,14 @@ FROM myapp.logs.raw;
 -- Requirements: tenant isolation, right-to-be-forgotten, PII redaction
 
 -- Base data layer (all tenants, all customers)
-CREATE VIEW myapp.customers.base AS
+CREATE VIEW myapp.customers.base SECURITY INVOKER AS
 SELECT
   customer_id, tenant_id, email, name,
   address, phone, deleted_at
 FROM postgresql.myapp.customers;
 
 -- Right-to-be-forgotten filtering layer
-CREATE VIEW myapp.customers.active AS
+CREATE VIEW myapp.customers.active SECURITY INVOKER AS
 SELECT
   customer_id, tenant_id, email, name, address, phone
 FROM myapp.customers.base
@@ -506,7 +506,7 @@ WHERE deleted_at IS NULL
   );
 
 -- Application entry point (with tenant isolation + PII redaction)
-CREATE VIEW myapp.customers.all AS
+CREATE VIEW myapp.customers.all SECURITY INVOKER AS
 SELECT
   customer_id, email, name,
   -- Redact address for non-privileged users
@@ -556,8 +556,8 @@ SELECT * FROM postgresql.myapp.logs WHERE event_time > ?
 After:
 ```sql
 -- Create virtual view as intermediary
-CREATE VIEW myapp.data.logs AS
-SELECT 
+CREATE VIEW myapp.data.logs SECURITY INVOKER AS
+SELECT
   CAST(id AS BIGINT) as log_id,
   CAST(event AS VARCHAR) as event_type,
   CAST(timestamp AS TIMESTAMP(3)) as event_time,
@@ -572,7 +572,7 @@ FROM postgresql.myapp.logs;
 
 ```sql
 -- Union PostgreSQL (hot, recent data) with Iceberg (cold, historical)
-CREATE OR REPLACE VIEW myapp.data.logs AS
+CREATE OR REPLACE VIEW myapp.data.logs SECURITY INVOKER AS
 -- Recent data still in PostgreSQL
 SELECT log_id, event_type, event_time, user_id
 FROM postgresql.myapp.logs
@@ -591,7 +591,7 @@ Zero application changes. Behind the scenes, a replication job moves old data fr
 
 ```sql
 -- Once all data is in Iceberg and PostgreSQL is ready to decommission
-CREATE OR REPLACE VIEW myapp.data.logs AS
+CREATE OR REPLACE VIEW myapp.data.logs SECURITY INVOKER AS
 SELECT log_id, event_type, event_time, user_id
 FROM iceberg.myapp.logs;
 ```

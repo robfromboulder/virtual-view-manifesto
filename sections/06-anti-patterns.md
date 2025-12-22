@@ -24,7 +24,7 @@ Virtual views are typically contraindicated for:
 -- This isn't a hierarchy, just one view
 -- No layers, no swappability, no real abstraction
 -- Just an extra indirection
-CREATE VIEW myapp.config.config AS
+CREATE VIEW myapp.config.config SECURITY INVOKER AS
 SELECT key, value FROM postgresql.myapp.config;
 ```
 

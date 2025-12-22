@@ -284,15 +284,15 @@ public void generateReports() {
 **Simple example (prototyping)**:
 ```sql
 -- Version 1: Prototype with static data
-CREATE VIEW myapp.users.all AS 
-SELECT * FROM (VALUES 
+CREATE VIEW myapp.users.all SECURITY INVOKER AS
+SELECT * FROM (VALUES
   (1, 'alice', 'alice@example.com'),
   (2, 'bob', 'bob@example.com')
 ) AS t (id, name, email);
 
 -- Version 2: Development database
-CREATE OR REPLACE VIEW myapp.users.all AS
-SELECT 
+CREATE OR REPLACE VIEW myapp.users.all SECURITY INVOKER AS
+SELECT
   CAST(id AS BIGINT) as id,
   CAST(name AS VARCHAR) as name,
   CAST(email AS VARCHAR) as email
@@ -302,8 +302,8 @@ FROM postgresql.myapp.users;
 **Realistic example (optional hybrid storage)**:
 ```sql
 -- Initially: All data in PostgreSQL
-CREATE VIEW myapp.events.all AS
-SELECT 
+CREATE VIEW myapp.events.all SECURITY INVOKER AS
+SELECT
   CAST(event_id AS BIGINT) as event_id,
   CAST(event_type AS VARCHAR) as event_type,
   CAST(event_time AS TIMESTAMP(3)) as event_time,
@@ -312,9 +312,9 @@ FROM postgresql.myapp.events;
 
 -- When enabled by feature flag: hybrid PostgreSQL + Iceberg
 -- Data older than 7 days is replicated separately
-CREATE OR REPLACE VIEW myapp.events.all AS
+CREATE OR REPLACE VIEW myapp.events.all SECURITY INVOKER AS
 SELECT event_id, event_type, event_time, user_id
-FROM postgresql.myapp.events 
+FROM postgresql.myapp.events
 WHERE event_time > CURRENT_DATE - INTERVAL '7' DAYS
 UNION ALL
 SELECT event_id, event_type, event_time, user_id
@@ -339,7 +339,7 @@ WHERE event_time <= CURRENT_DATE - INTERVAL '7' DAYS;
 **Simple example**:
 ```sql
 -- Owned by data engineering, updated during migrations
-CREATE VIEW myapp.users.merged AS
+CREATE VIEW myapp.users.merged SECURITY INVOKER AS
 SELECT id, name, email, account_type, tenant_id
 FROM postgresql.myapp.users
 UNION ALL
@@ -347,13 +347,13 @@ SELECT id, name, email, account_type, tenant_id
 FROM iceberg.myapp.users;
 
 -- Owned by privacy system, updated when policies change
-CREATE VIEW myapp.users.filtered AS
+CREATE VIEW myapp.users.filtered SECURITY INVOKER AS
 SELECT id, name, email, account_type
 FROM myapp.users.merged
 WHERE tenant_id = current_tenant() OR is_admin();
 
 -- Owned by dev team, updated during releases
-CREATE VIEW myapp.users.all AS
+CREATE VIEW myapp.users.all SECURITY INVOKER AS
 SELECT id, name, email, account_type
 FROM myapp.users.filtered;
 ```
@@ -385,14 +385,14 @@ FROM myapp.users.filtered;
 **Working example with `CAST`**:
 ```sql
 -- Original view
-CREATE VIEW myapp.events.all AS
+CREATE VIEW myapp.events.all SECURITY INVOKER AS
 SELECT
   CAST(id AS BIGINT) as event_id,
   CAST(name AS VARCHAR) as event_name
 FROM postgresql.myapp.events;
 
 -- Good replacement: types preserved
-CREATE OR REPLACE VIEW myapp.events.all AS
+CREATE OR REPLACE VIEW myapp.events.all SECURITY INVOKER AS
 SELECT
   CAST(event_id AS BIGINT) as event_id,
   CAST(event_name AS VARCHAR) as event_name
@@ -402,14 +402,14 @@ FROM iceberg.myapp.events;
 **Breaking example with cascading failure**:
 ```sql
 -- Base view (originally BIGINT)
-CREATE VIEW myapp.events.base AS
+CREATE VIEW myapp.events.base SECURITY INVOKER AS
 SELECT
   CAST(id AS BIGINT) as event_id,
   CAST(timestamp AS TIMESTAMP(3)) as event_time
 FROM postgresql.myapp.events;
 
 -- Dependent view (expects BIGINT)
-CREATE VIEW myapp.events.hourly AS
+CREATE VIEW myapp.events.hourly SECURITY INVOKER AS
 SELECT
   event_id,
   date_trunc('hour', event_time) as hour,
@@ -418,7 +418,7 @@ FROM myapp.events.base
 GROUP BY event_id, date_trunc('hour', event_time);
 
 -- Someone changes base view type
-CREATE OR REPLACE VIEW myapp.events.base AS
+CREATE OR REPLACE VIEW myapp.events.base SECURITY INVOKER AS
 SELECT
   CAST(id AS VARCHAR) as event_id,  -- Now VARCHAR!
   CAST(timestamp AS TIMESTAMP(3)) as event_time
@@ -540,13 +540,13 @@ Do you already use Iceberg?
 **Simple example**:
 ```sql
 -- These four views form a hierarchy, but how?
-CREATE VIEW myapp.users.base AS
+CREATE VIEW myapp.users.base SECURITY INVOKER AS
   SELECT * FROM postgresql.myapp.users;
-CREATE VIEW myapp.users.enriched AS
+CREATE VIEW myapp.users.enriched SECURITY INVOKER AS
   SELECT * FROM myapp.users.base;
-CREATE VIEW myapp.users.filtered AS
+CREATE VIEW myapp.users.filtered SECURITY INVOKER AS
   SELECT * FROM myapp.users.enriched;
-CREATE VIEW myapp.users.all AS
+CREATE VIEW myapp.users.all SECURITY INVOKER AS
   SELECT * FROM myapp.users.filtered;
 
 -- SHOW CREATE VIEW only shows one level at a time
@@ -618,7 +618,7 @@ flowchart TD
 **Simple example**:
 ```sql
 -- Day 1: No database yet, use static data
-CREATE VIEW myapp.customers.all AS
+CREATE VIEW myapp.customers.all SECURITY INVOKER AS
 SELECT * FROM (VALUES
   (1, 'Acme Corp', 'acme@example.com'),
   (2, 'Widgets Inc', 'widgets@example.com'),
@@ -629,7 +629,7 @@ SELECT * FROM (VALUES
 -- UI, business logic, tests all work against this view
 
 -- Day 30: Database ready, swap in real data
-CREATE OR REPLACE VIEW myapp.customers.all AS
+CREATE OR REPLACE VIEW myapp.customers.all SECURITY INVOKER AS
 SELECT
   CAST(id AS BIGINT) as customer_id,
   CAST(name AS VARCHAR) as company_name,
@@ -646,7 +646,7 @@ FROM postgresql.myapp.customers;
 -- Some tables don't exist yet, some APIs not ready
 
 -- Start with mock data for all sources
-CREATE VIEW analytics.reports.customer_lifetime_value AS
+CREATE VIEW analytics.reports.customer_lifetime_value SECURITY INVOKER AS
 SELECT
   customer_id,
   SUM(order_total) as lifetime_value,
@@ -665,7 +665,7 @@ GROUP BY customer_id;
 -- Only implement real data pipelines after prototype is approved
 
 -- Later: Swap to real, complex query
-CREATE OR REPLACE VIEW analytics.reports.customer_lifetime_value AS
+CREATE OR REPLACE VIEW analytics.reports.customer_lifetime_value SECURITY INVOKER AS
 SELECT
   c.customer_id,
   SUM(o.total) as lifetime_value,
@@ -715,7 +715,7 @@ gantt
 **Simple example**:
 ```sql
 -- Production view
-CREATE VIEW myapp.products.all AS
+CREATE VIEW myapp.products.all SECURITY INVOKER AS
 SELECT
   CAST(product_id AS BIGINT) as product_id,
   CAST(name AS VARCHAR) as name,
@@ -724,7 +724,7 @@ SELECT
 FROM postgresql.myapp.products;
 
 -- Test view with edge cases
-CREATE OR REPLACE VIEW myapp.products.all AS
+CREATE OR REPLACE VIEW myapp.products.all SECURITY INVOKER AS
 SELECT * FROM (VALUES
   (1, 'Normal Product', 10.00, 100),
   (2, 'Zero Price', 0.00, 50),          -- Edge case
@@ -818,7 +818,7 @@ configure_test_mode(current_config)
 -- postgresql.myapp.users_v1 (columns: userid, fname, lname, addr)
 
 -- Virtual view provides better names
-CREATE VIEW myapp.users.all AS
+CREATE VIEW myapp.users.all SECURITY INVOKER AS
 SELECT
   userid as user_id,
   fname as first_name,
@@ -830,7 +830,7 @@ FROM postgresql.myapp.users_v1;
 -- postgresql.myapp.users_v2 (columns: user_id, first_name, last_name, street_address)
 
 -- Update view, application unchanged
-CREATE OR REPLACE VIEW myapp.users.all AS
+CREATE OR REPLACE VIEW myapp.users.all SECURITY INVOKER AS
 SELECT
   user_id,
   first_name,
@@ -842,7 +842,7 @@ FROM postgresql.myapp.users_v2;
 **Realistic example with backward compatibility**:
 ```sql
 -- V1 schema: Monolithic user table
-CREATE VIEW myapp.users.all AS
+CREATE VIEW myapp.users.all SECURITY INVOKER AS
 SELECT
   CAST(user_id AS BIGINT) as user_id,
   CAST(email AS VARCHAR) as email,
@@ -856,7 +856,7 @@ FROM postgresql.myapp.users_v1;
 
 -- V2 schema: Normalized into users + addresses tables
 -- Keep backward compatibility during migration
-CREATE OR REPLACE VIEW myapp.users.all AS
+CREATE OR REPLACE VIEW myapp.users.all SECURITY INVOKER AS
 SELECT
   CAST(u.user_id AS BIGINT) as user_id,
   CAST(u.email AS VARCHAR) as email,
@@ -872,7 +872,7 @@ LEFT JOIN postgresql.myapp.addresses_v2 a
   AND a.is_primary = true;
 
 -- V3 schema: Changed email validation, need to handle legacy bad data
-CREATE OR REPLACE VIEW myapp.users.all AS
+CREATE OR REPLACE VIEW myapp.users.all SECURITY INVOKER AS
 SELECT
   CAST(u.user_id AS BIGINT) as user_id,
   CAST(
@@ -1060,14 +1060,14 @@ git checkout feature/iceberg-storage
 **Simple example**:
 ```sql
 -- Base data layer
-CREATE VIEW myapp.logs.raw AS
+CREATE VIEW myapp.logs.raw SECURITY INVOKER AS
 SELECT
   log_id, event_type, user_id,
   user_email, ip_address, event_time
 FROM postgresql.myapp.logs;
 
 -- Privacy layer (redact PII except for admins)
-CREATE VIEW myapp.logs.all AS
+CREATE VIEW myapp.logs.all SECURITY INVOKER AS
 SELECT
   log_id, event_type, user_id,
   -- Redact email and IP unless admin
@@ -1083,14 +1083,14 @@ FROM myapp.logs.raw;
 -- Requirements: tenant isolation, right-to-be-forgotten, PII redaction
 
 -- Base data layer (all tenants, all customers)
-CREATE VIEW myapp.customers.base AS
+CREATE VIEW myapp.customers.base SECURITY INVOKER AS
 SELECT
   customer_id, tenant_id, email, name,
   address, phone, deleted_at
 FROM postgresql.myapp.customers;
 
 -- Right-to-be-forgotten filtering layer
-CREATE VIEW myapp.customers.active AS
+CREATE VIEW myapp.customers.active SECURITY INVOKER AS
 SELECT
   customer_id, tenant_id, email, name, address, phone
 FROM myapp.customers.base
@@ -1102,7 +1102,7 @@ WHERE deleted_at IS NULL
   );
 
 -- Application entry point (with tenant isolation + PII redaction)
-CREATE VIEW myapp.customers.all AS
+CREATE VIEW myapp.customers.all SECURITY INVOKER AS
 SELECT
   customer_id, email, name,
   -- Redact address for non-privileged users
@@ -1152,8 +1152,8 @@ SELECT * FROM postgresql.myapp.logs WHERE event_time > ?
 After:
 ```sql
 -- Create virtual view as intermediary
-CREATE VIEW myapp.data.logs AS
-SELECT 
+CREATE VIEW myapp.data.logs SECURITY INVOKER AS
+SELECT
   CAST(id AS BIGINT) as log_id,
   CAST(event AS VARCHAR) as event_type,
   CAST(timestamp AS TIMESTAMP(3)) as event_time,
@@ -1168,7 +1168,7 @@ FROM postgresql.myapp.logs;
 
 ```sql
 -- Union PostgreSQL (hot, recent data) with Iceberg (cold, historical)
-CREATE OR REPLACE VIEW myapp.data.logs AS
+CREATE OR REPLACE VIEW myapp.data.logs SECURITY INVOKER AS
 -- Recent data still in PostgreSQL
 SELECT log_id, event_type, event_time, user_id
 FROM postgresql.myapp.logs
@@ -1187,7 +1187,7 @@ Zero application changes. Behind the scenes, a replication job moves old data fr
 
 ```sql
 -- Once all data is in Iceberg and PostgreSQL is ready to decommission
-CREATE OR REPLACE VIEW myapp.data.logs AS
+CREATE OR REPLACE VIEW myapp.data.logs SECURITY INVOKER AS
 SELECT log_id, event_type, event_time, user_id
 FROM iceberg.myapp.logs;
 ```
@@ -1319,7 +1319,7 @@ ResultSet rs = conn.createStatement().executeQuery(
 
 ```sql
 -- Static test data, no database needed
-CREATE VIEW ecommerce.orders.all AS
+CREATE VIEW ecommerce.orders.all SECURITY INVOKER AS
 SELECT * FROM (VALUES
   (1, 101, 50.00, 'pending', TIMESTAMP '2024-01-01 10:00:00'),
   (2, 102, 75.00, 'shipped', TIMESTAMP '2024-01-01 11:00:00'),
@@ -1338,7 +1338,7 @@ UI development, business logic tests, stakeholder demos all work with this mock 
 
 ```sql
 -- Swap to development PostgreSQL
-CREATE OR REPLACE VIEW ecommerce.orders.all AS
+CREATE OR REPLACE VIEW ecommerce.orders.all SECURITY INVOKER AS
 SELECT
   CAST(order_id AS BIGINT) as order_id,
   CAST(customer_id AS BIGINT) as customer_id,
@@ -1357,7 +1357,7 @@ SELECT * FROM ecommerce.orders.all [WHERE status = 'pending'];
 
 ```sql
 -- Point to production database
-CREATE OR REPLACE VIEW ecommerce.orders.all AS
+CREATE OR REPLACE VIEW ecommerce.orders.all SECURITY INVOKER AS
 SELECT
   CAST(order_id AS BIGINT) as order_id,
   CAST(customer_id AS BIGINT) as customer_id,
@@ -1376,7 +1376,7 @@ SELECT * FROM ecommerce.orders.all [WHERE status = 'pending'];
 
 ```sql
 -- Hybrid: Recent in PostgreSQL, historical in Iceberg
-CREATE OR REPLACE VIEW ecommerce.orders.all AS
+CREATE OR REPLACE VIEW ecommerce.orders.all SECURITY INVOKER AS
 -- Hot data: Last 90 days in PostgreSQL
 SELECT
   CAST(order_id AS BIGINT) as order_id,
@@ -1414,7 +1414,7 @@ Behind the scenes, a replication job:
 
 ```sql
 -- Storage merge layer (copied from Phase 4, but under a new name)
-CREATE VIEW ecommerce.orders.merged AS
+CREATE VIEW ecommerce.orders.merged SECURITY INVOKER AS
 -- Hot data in PostgreSQL
 SELECT
   CAST(order_id AS BIGINT) as order_id,
@@ -1439,7 +1439,7 @@ FROM iceberg.ecommerce.orders
 WHERE created_at <= CURRENT_DATE - INTERVAL '90' DAYS;
 
 -- Privacy/security layer (including tenant isolation)
-CREATE VIEW ecommerce.orders.filtered AS
+CREATE VIEW ecommerce.orders.filtered SECURITY INVOKER AS
 SELECT
   order_id, customer_id, total, status, created_at, tenant_id
 FROM ecommerce.orders.merged
@@ -1450,7 +1450,7 @@ WHERE
   AND created_at > CURRENT_DATE - INTERVAL '2' YEAR;
 
 -- Application entry point with calculated fields
-CREATE VIEW ecommerce.api.orders AS
+CREATE VIEW ecommerce.api.orders SECURITY INVOKER AS
 SELECT
   order_id,
   customer_id,
@@ -1571,12 +1571,12 @@ git commit -m "Add view dependency visualization"
 **Example**:
 ```sql
 -- Original: Returns BIGINT implicitly from PostgreSQL
-CREATE VIEW myapp.users.base AS
+CREATE VIEW myapp.users.base SECURITY INVOKER AS
 SELECT user_id, name, email
 FROM postgresql.myapp.users;
 
 -- Replacement: Returns INTEGER from different source (different precision)
-CREATE OR REPLACE VIEW myapp.users.base AS
+CREATE OR REPLACE VIEW myapp.users.base SECURITY INVOKER AS
 SELECT user_id, name, email
 FROM mysql.myapp.users;
 
@@ -1588,7 +1588,7 @@ JOIN myapp.orders.all o ON u.user_id = o.customer_id;  -- Type mismatch error
 
 **Solution**: Always use explicit CAST in base views.
 ```sql
-CREATE VIEW myapp.users.base AS
+CREATE VIEW myapp.users.base SECURITY INVOKER AS
 SELECT
   CAST(user_id AS BIGINT) as user_id,
   CAST(name AS VARCHAR) as name,
@@ -1596,7 +1596,7 @@ SELECT
 FROM postgresql.myapp.users;
 
 -- Type is now locked regardless of source
-CREATE OR REPLACE VIEW myapp.users.base AS
+CREATE OR REPLACE VIEW myapp.users.base SECURITY INVOKER AS
 SELECT
   CAST(user_id AS BIGINT) as user_id,
   CAST(name AS VARCHAR) as name,
@@ -1611,25 +1611,25 @@ FROM mysql.myapp.users;
 **Example**:
 ```sql
 -- Base view
-CREATE VIEW myapp.users.base AS
+CREATE VIEW myapp.users.base SECURITY INVOKER AS
 SELECT
   CAST(user_id AS BIGINT) as user_id,
   CAST(name AS VARCHAR) as name
 FROM postgresql.myapp.users;
 
 -- Middle layer
-CREATE VIEW myapp.users.enriched AS
+CREATE VIEW myapp.users.enriched SECURITY INVOKER AS
 SELECT
   user_id,
   UPPER(name) as name
 FROM myapp.users.base;
 
 -- Top layer
-CREATE VIEW myapp.users.all AS
+CREATE VIEW myapp.users.all SECURITY INVOKER AS
 SELECT * FROM myapp.users.enriched;
 
 -- Replace base, add new column
-CREATE OR REPLACE VIEW myapp.users.base AS
+CREATE OR REPLACE VIEW myapp.users.base SECURITY INVOKER AS
 SELECT
   CAST(user_id AS BIGINT) as user_id,
   CAST(name AS VARCHAR) as name,
@@ -1649,12 +1649,12 @@ FROM postgresql.myapp.users;
 **Example**:
 ```sql
 -- Original: Always returns rows in id order
-CREATE VIEW myapp.events.all AS
+CREATE VIEW myapp.events.all SECURITY INVOKER AS
 SELECT * FROM postgresql.myapp.events
 ORDER BY event_id;
 
 -- Replacement: No ORDER BY, application breaks expecting sorted data
-CREATE OR REPLACE VIEW myapp.events.all AS
+CREATE OR REPLACE VIEW myapp.events.all SECURITY INVOKER AS
 SELECT * FROM iceberg.myapp.events;  -- No ORDER BY!
 ```
 
@@ -1715,7 +1715,7 @@ DROP VIEW myapp.events.filtered;
 **Example**:
 ```sql
 -- Views stored in test PostgreSQL instance
-CREATE VIEW test.myapp.users_all AS
+CREATE VIEW test.myapp.users_all SECURITY INVOKER AS
 SELECT * FROM postgresql.myapp.users;
 
 -- Test instance deleted, all view definitions lost
@@ -1764,7 +1764,7 @@ Virtual views are typically contraindicated for:
 -- This isn't a hierarchy, just one view
 -- No layers, no swappability, no real abstraction
 -- Just an extra indirection
-CREATE VIEW myapp.config.config AS
+CREATE VIEW myapp.config.config SECURITY INVOKER AS
 SELECT key, value FROM postgresql.myapp.config;
 ```
 

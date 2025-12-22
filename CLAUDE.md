@@ -122,11 +122,20 @@ This convention ensures clean separation when files are concatenated and makes t
 - Make example headers consistent ("Example of..." pattern)
 - Use GitHub callout boxes (> [!CAUTION], > [!TIP]) for important warnings and tips
 
-### Important Notes
+### Using SECURITY INVOKER in Examples
 
-- `.claudeignore` excludes README.md to prevent loading the full file
-- Section files are the source of truth for editing
-- README.md is committed to git for GitHub display convenience
+All CREATE VIEW examples should include `SECURITY INVOKER` using compact single-line format:
+```sql
+CREATE VIEW myapp.users.all SECURITY INVOKER AS
+SELECT ...
+```
+
+**Exceptions** (do NOT add SECURITY INVOKER):
+- Introduction section (classical view examples showing traditional patterns)
+- Principle 6 examples that demonstrate SECURITY DEFINER as counter-example
+- SELECT statements (not applicable to queries)
+- Materialized views (don't support SECURITY INVOKER)
+- Placeholder examples using `CREATE VIEW ... AS ...` where details are omitted
 
 ---
 

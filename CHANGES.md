@@ -8,8 +8,10 @@
 - Section files are now the source of truth for all edits
 - Added section file formatting convention (consistent delimiters and spacing)
 - Updated CLAUDE.md with build workflow documentation
-- No content changes; purely structural refactoring
-- Document remains at ~1963 lines, ~9,000 words
+- **Added SECURITY INVOKER to CREATE VIEW examples** throughout the manifesto
+- Added "Using SECURITY INVOKER in Examples" section to CLAUDE.md documenting the convention
+- SECURITY INVOKER omitted from Introduction (classical views), Principle 6 counter-examples, and SELECT statements
+- Document remains at ~1960 lines, ~9,300 words
 
 ## Version 0.53 (2025-12-18)
 - **Improved examples and diagrams** throughout the document for clarity and consistency

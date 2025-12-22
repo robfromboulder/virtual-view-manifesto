@@ -90,7 +90,7 @@ ResultSet rs = conn.createStatement().executeQuery(
 
 ```sql
 -- Static test data, no database needed
-CREATE VIEW ecommerce.orders.all AS
+CREATE VIEW ecommerce.orders.all SECURITY INVOKER AS
 SELECT * FROM (VALUES
   (1, 101, 50.00, 'pending', TIMESTAMP '2024-01-01 10:00:00'),
   (2, 102, 75.00, 'shipped', TIMESTAMP '2024-01-01 11:00:00'),
@@ -109,7 +109,7 @@ UI development, business logic tests, stakeholder demos all work with this mock 
 
 ```sql
 -- Swap to development PostgreSQL
-CREATE OR REPLACE VIEW ecommerce.orders.all AS
+CREATE OR REPLACE VIEW ecommerce.orders.all SECURITY INVOKER AS
 SELECT
   CAST(order_id AS BIGINT) as order_id,
   CAST(customer_id AS BIGINT) as customer_id,
@@ -128,7 +128,7 @@ SELECT * FROM ecommerce.orders.all [WHERE status = 'pending'];
 
 ```sql
 -- Point to production database
-CREATE OR REPLACE VIEW ecommerce.orders.all AS
+CREATE OR REPLACE VIEW ecommerce.orders.all SECURITY INVOKER AS
 SELECT
   CAST(order_id AS BIGINT) as order_id,
   CAST(customer_id AS BIGINT) as customer_id,
@@ -147,7 +147,7 @@ SELECT * FROM ecommerce.orders.all [WHERE status = 'pending'];
 
 ```sql
 -- Hybrid: Recent in PostgreSQL, historical in Iceberg
-CREATE OR REPLACE VIEW ecommerce.orders.all AS
+CREATE OR REPLACE VIEW ecommerce.orders.all SECURITY INVOKER AS
 -- Hot data: Last 90 days in PostgreSQL
 SELECT
   CAST(order_id AS BIGINT) as order_id,
@@ -185,7 +185,7 @@ Behind the scenes, a replication job:
 
 ```sql
 -- Storage merge layer (copied from Phase 4, but under a new name)
-CREATE VIEW ecommerce.orders.merged AS
+CREATE VIEW ecommerce.orders.merged SECURITY INVOKER AS
 -- Hot data in PostgreSQL
 SELECT
   CAST(order_id AS BIGINT) as order_id,
@@ -210,7 +210,7 @@ FROM iceberg.ecommerce.orders
 WHERE created_at <= CURRENT_DATE - INTERVAL '90' DAYS;
 
 -- Privacy/security layer (including tenant isolation)
-CREATE VIEW ecommerce.orders.filtered AS
+CREATE VIEW ecommerce.orders.filtered SECURITY INVOKER AS
 SELECT
   order_id, customer_id, total, status, created_at, tenant_id
 FROM ecommerce.orders.merged
@@ -221,7 +221,7 @@ WHERE
   AND created_at > CURRENT_DATE - INTERVAL '2' YEAR;
 
 -- Application entry point with calculated fields
-CREATE VIEW ecommerce.api.orders AS
+CREATE VIEW ecommerce.api.orders SECURITY INVOKER AS
 SELECT
   order_id,
   customer_id,

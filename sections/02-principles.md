@@ -136,15 +136,15 @@ public void generateReports() {
 **Simple example (prototyping)**:
 ```sql
 -- Version 1: Prototype with static data
-CREATE VIEW myapp.users.all AS 
-SELECT * FROM (VALUES 
+CREATE VIEW myapp.users.all SECURITY INVOKER AS
+SELECT * FROM (VALUES
   (1, 'alice', 'alice@example.com'),
   (2, 'bob', 'bob@example.com')
 ) AS t (id, name, email);
 
 -- Version 2: Development database
-CREATE OR REPLACE VIEW myapp.users.all AS
-SELECT 
+CREATE OR REPLACE VIEW myapp.users.all SECURITY INVOKER AS
+SELECT
   CAST(id AS BIGINT) as id,
   CAST(name AS VARCHAR) as name,
   CAST(email AS VARCHAR) as email
@@ -154,8 +154,8 @@ FROM postgresql.myapp.users;
 **Realistic example (optional hybrid storage)**:
 ```sql
 -- Initially: All data in PostgreSQL
-CREATE VIEW myapp.events.all AS
-SELECT 
+CREATE VIEW myapp.events.all SECURITY INVOKER AS
+SELECT
   CAST(event_id AS BIGINT) as event_id,
   CAST(event_type AS VARCHAR) as event_type,
   CAST(event_time AS TIMESTAMP(3)) as event_time,
@@ -164,9 +164,9 @@ FROM postgresql.myapp.events;
 
 -- When enabled by feature flag: hybrid PostgreSQL + Iceberg
 -- Data older than 7 days is replicated separately
-CREATE OR REPLACE VIEW myapp.events.all AS
+CREATE OR REPLACE VIEW myapp.events.all SECURITY INVOKER AS
 SELECT event_id, event_type, event_time, user_id
-FROM postgresql.myapp.events 
+FROM postgresql.myapp.events
 WHERE event_time > CURRENT_DATE - INTERVAL '7' DAYS
 UNION ALL
 SELECT event_id, event_type, event_time, user_id
@@ -191,7 +191,7 @@ WHERE event_time <= CURRENT_DATE - INTERVAL '7' DAYS;
 **Simple example**:
 ```sql
 -- Owned by data engineering, updated during migrations
-CREATE VIEW myapp.users.merged AS
+CREATE VIEW myapp.users.merged SECURITY INVOKER AS
 SELECT id, name, email, account_type, tenant_id
 FROM postgresql.myapp.users
 UNION ALL
@@ -199,13 +199,13 @@ SELECT id, name, email, account_type, tenant_id
 FROM iceberg.myapp.users;
 
 -- Owned by privacy system, updated when policies change
-CREATE VIEW myapp.users.filtered AS
+CREATE VIEW myapp.users.filtered SECURITY INVOKER AS
 SELECT id, name, email, account_type
 FROM myapp.users.merged
 WHERE tenant_id = current_tenant() OR is_admin();
 
 -- Owned by dev team, updated during releases
-CREATE VIEW myapp.users.all AS
+CREATE VIEW myapp.users.all SECURITY INVOKER AS
 SELECT id, name, email, account_type
 FROM myapp.users.filtered;
 ```
@@ -237,14 +237,14 @@ FROM myapp.users.filtered;
 **Working example with `CAST`**:
 ```sql
 -- Original view
-CREATE VIEW myapp.events.all AS
+CREATE VIEW myapp.events.all SECURITY INVOKER AS
 SELECT
   CAST(id AS BIGINT) as event_id,
   CAST(name AS VARCHAR) as event_name
 FROM postgresql.myapp.events;
 
 -- Good replacement: types preserved
-CREATE OR REPLACE VIEW myapp.events.all AS
+CREATE OR REPLACE VIEW myapp.events.all SECURITY INVOKER AS
 SELECT
   CAST(event_id AS BIGINT) as event_id,
   CAST(event_name AS VARCHAR) as event_name
@@ -254,14 +254,14 @@ FROM iceberg.myapp.events;
 **Breaking example with cascading failure**:
 ```sql
 -- Base view (originally BIGINT)
-CREATE VIEW myapp.events.base AS
+CREATE VIEW myapp.events.base SECURITY INVOKER AS
 SELECT
   CAST(id AS BIGINT) as event_id,
   CAST(timestamp AS TIMESTAMP(3)) as event_time
 FROM postgresql.myapp.events;
 
 -- Dependent view (expects BIGINT)
-CREATE VIEW myapp.events.hourly AS
+CREATE VIEW myapp.events.hourly SECURITY INVOKER AS
 SELECT
   event_id,
   date_trunc('hour', event_time) as hour,
@@ -270,7 +270,7 @@ FROM myapp.events.base
 GROUP BY event_id, date_trunc('hour', event_time);
 
 -- Someone changes base view type
-CREATE OR REPLACE VIEW myapp.events.base AS
+CREATE OR REPLACE VIEW myapp.events.base SECURITY INVOKER AS
 SELECT
   CAST(id AS VARCHAR) as event_id,  -- Now VARCHAR!
   CAST(timestamp AS TIMESTAMP(3)) as event_time
@@ -392,13 +392,13 @@ Do you already use Iceberg?
 **Simple example**:
 ```sql
 -- These four views form a hierarchy, but how?
-CREATE VIEW myapp.users.base AS
+CREATE VIEW myapp.users.base SECURITY INVOKER AS
   SELECT * FROM postgresql.myapp.users;
-CREATE VIEW myapp.users.enriched AS
+CREATE VIEW myapp.users.enriched SECURITY INVOKER AS
   SELECT * FROM myapp.users.base;
-CREATE VIEW myapp.users.filtered AS
+CREATE VIEW myapp.users.filtered SECURITY INVOKER AS
   SELECT * FROM myapp.users.enriched;
-CREATE VIEW myapp.users.all AS
+CREATE VIEW myapp.users.all SECURITY INVOKER AS
   SELECT * FROM myapp.users.filtered;
 
 -- SHOW CREATE VIEW only shows one level at a time

@@ -19,12 +19,12 @@
 **Example**:
 ```sql
 -- Original: Returns BIGINT implicitly from PostgreSQL
-CREATE VIEW myapp.users.base AS
+CREATE VIEW myapp.users.base SECURITY INVOKER AS
 SELECT user_id, name, email
 FROM postgresql.myapp.users;
 
 -- Replacement: Returns INTEGER from different source (different precision)
-CREATE OR REPLACE VIEW myapp.users.base AS
+CREATE OR REPLACE VIEW myapp.users.base SECURITY INVOKER AS
 SELECT user_id, name, email
 FROM mysql.myapp.users;
 
@@ -36,7 +36,7 @@ JOIN myapp.orders.all o ON u.user_id = o.customer_id;  -- Type mismatch error
 
 **Solution**: Always use explicit CAST in base views.
 ```sql
-CREATE VIEW myapp.users.base AS
+CREATE VIEW myapp.users.base SECURITY INVOKER AS
 SELECT
   CAST(user_id AS BIGINT) as user_id,
   CAST(name AS VARCHAR) as name,
@@ -44,7 +44,7 @@ SELECT
 FROM postgresql.myapp.users;
 
 -- Type is now locked regardless of source
-CREATE OR REPLACE VIEW myapp.users.base AS
+CREATE OR REPLACE VIEW myapp.users.base SECURITY INVOKER AS
 SELECT
   CAST(user_id AS BIGINT) as user_id,
   CAST(name AS VARCHAR) as name,
@@ -59,25 +59,25 @@ FROM mysql.myapp.users;
 **Example**:
 ```sql
 -- Base view
-CREATE VIEW myapp.users.base AS
+CREATE VIEW myapp.users.base SECURITY INVOKER AS
 SELECT
   CAST(user_id AS BIGINT) as user_id,
   CAST(name AS VARCHAR) as name
 FROM postgresql.myapp.users;
 
 -- Middle layer
-CREATE VIEW myapp.users.enriched AS
+CREATE VIEW myapp.users.enriched SECURITY INVOKER AS
 SELECT
   user_id,
   UPPER(name) as name
 FROM myapp.users.base;
 
 -- Top layer
-CREATE VIEW myapp.users.all AS
+CREATE VIEW myapp.users.all SECURITY INVOKER AS
 SELECT * FROM myapp.users.enriched;
 
 -- Replace base, add new column
-CREATE OR REPLACE VIEW myapp.users.base AS
+CREATE OR REPLACE VIEW myapp.users.base SECURITY INVOKER AS
 SELECT
   CAST(user_id AS BIGINT) as user_id,
   CAST(name AS VARCHAR) as name,
@@ -97,12 +97,12 @@ FROM postgresql.myapp.users;
 **Example**:
 ```sql
 -- Original: Always returns rows in id order
-CREATE VIEW myapp.events.all AS
+CREATE VIEW myapp.events.all SECURITY INVOKER AS
 SELECT * FROM postgresql.myapp.events
 ORDER BY event_id;
 
 -- Replacement: No ORDER BY, application breaks expecting sorted data
-CREATE OR REPLACE VIEW myapp.events.all AS
+CREATE OR REPLACE VIEW myapp.events.all SECURITY INVOKER AS
 SELECT * FROM iceberg.myapp.events;  -- No ORDER BY!
 ```
 
@@ -163,7 +163,7 @@ DROP VIEW myapp.events.filtered;
 **Example**:
 ```sql
 -- Views stored in test PostgreSQL instance
-CREATE VIEW test.myapp.users_all AS
+CREATE VIEW test.myapp.users_all SECURITY INVOKER AS
 SELECT * FROM postgresql.myapp.users;
 
 -- Test instance deleted, all view definitions lost
