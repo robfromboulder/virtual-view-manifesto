@@ -67,7 +67,7 @@ CREATE VIEW myapp.products.pricing AS ...
 
 ```mermaid
 flowchart TD
-    App["Application"] --> Catalog["Application Catalog<br/>(myapp.data.*)"]
+    App["Application"] --> Catalog["Application Catalog<br/>(myapp.[feature].*)"]
     Catalog --> Views["Application View<br/>Hierarchy"]
     Views --> DB[("Physical Tables")]
     App --> Legacy["Legacy Code<br/>(unmodified)"]
