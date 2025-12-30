@@ -160,6 +160,7 @@ SELECT ...
 - Pragmatic over dogmatic
 - When in doubt: simpler is better
 - **Never use em dashes (—)**: They cause formatting issues with web content and signal AI-generated text to readers. Use commas instead, extending sentences naturally without colons or dashes as breaks
+- **Addressing skeptical readers**: Acknowledge existing solutions (microservices, ORMs, DALs) first, then show where virtual views complement or add value rather than compete or replace. Avoid making empirical claims without evidence ("many applications do X") that skeptics can easily dispute
 
 ### Preferred Terminology
 
@@ -170,6 +171,7 @@ SELECT ...
 | Swappable | Replaceable | Implies designed for it |
 | Application catalog | Feature catalog | Either works, depends on context |
 | Federation | Data virtualization | More concrete |
+| Virtualizing at the query engine layer | Database abstraction layer | Clarifies where in the stack virtual views operate |
 
 ### Content Standards
 

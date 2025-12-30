@@ -1,5 +1,10 @@
 # Change Log
 
+## Version 0.63 (2025-12-30)
+- **Editorial refinements to header and introduction sections**
+- Better acknowledge the concerns of the skeptical reader
+- Contrast "virtualization at query engine layer" as a new option alongside microservices & ORMs
+
 ## Version 0.62 (2025-12-21)
 - **Fixed SECURITY INVOKER in Python code examples**
 - Affected Use Case 2 (Testing Data Edge Cases) and Use Case 5 (Runtime Configuration)

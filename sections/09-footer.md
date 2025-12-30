@@ -15,11 +15,11 @@ To the extent possible under law, the author has waived all copyright and relate
 
 - To the contributors like Roey Ogen and Ron Mirer who volunteer their time
 - To the practitioners who've used these patterns in production and provided feedback
-- To the Trino community for building the query engine that makes federation practical
+- To Starburst and the Trino community for the query engines that make federation routine
 - To the Iceberg community for creating an open table format for everyone
 - To Claude and Claude Code as thinking partners and co-authors
 
 ---
 
-**Version**: 0.62
-**Last Updated**: 2025-12-21
+**Version**: 0.63
+**Last Updated**: 2025-12-30

@@ -1,7 +1,9 @@
 # The Virtual View Manifesto
 **Stop treating SQL views like decoration. Start using them as your application's data contract.**
 
-Classical SQL views are boring schema decoration for hiding joins, adding computed columns, and enforcing permissions. **Virtual views** are different. They're architectural components that decouple applications from physical storage, enable prototyping and testing with static data, allow seamless migration to Iceberg, and support zero-downtime schema evolution. Virtual views can be layered into **hierarchies**, where any layer in the hierarchy can be replaced (even at runtime) without disrupting other layers or active queries.
+Classical SQL views are boring schema decoration for hiding joins, adding computed columns, and enforcing permissions. **Virtual views** are different. They're architectural components that decouple applications and agents from physical storage, enable prototyping and testing with static data, allow seamless migration to Iceberg, and support zero-downtime schema evolution. Virtual views can be layered into **hierarchies**, where any layer in the hierarchy can be replaced (even at runtime) without disrupting other layers or active queries.
+
+Unlike using remote microservices or object-to-relational mapping tools (ORMs) to decouple applications and agents from databases, virtual views apply only to the query engine layer of a SQL database, without adding significant latency or serialization overhead. 
 
 Virtual view hierarchies can be implemented using Trino, Starburst Enterprise or Galaxy, Amazon Athena, Presto, and most databases that support SQL views (including Postgresql and MySQL). Trino is used for all examples here.
 
@@ -97,32 +99,34 @@ FROM postgresql.myapp.orders
 GROUP BY date_trunc('day', order_date);
 ```
 
-Even though views like the examples above can be very helpful for reusing SQL statements, many applications only use views sparingly, with most queries directly referencing the physical schema.
-
 ### The Cost of Tight Coupling to Physical Schemas
 
-Many database applications (especially those with light use of views) have a fundamental and widely accepted constraint. They are tightly coupled to their physical databases, tables and views.
-
-Because of this tight coupling by default:
+When applications query physical schemas directly, tight coupling creates friction:
 - Applications must know which connector(s) to query
 - Views live in the same database/connector as their tables
-- Migrating storage or schema always means changing application code
+- Migrating storage means changing queries wherever they appear
 
-**Example of the problem**:
+**Example of the migration problem**:
 ```sql
 -- Application queries PostgreSQL directly
 SELECT * FROM postgresql.myapp.customers;
 
--- Want to move to Iceberg? Change application code like this...
+-- Want to move to Iceberg? Change the query...
 SELECT * FROM iceberg.myapp.customers;
 
--- Have data in both? Application must again handle the complexity like this...
+-- Have data in both? Handle the complexity...
 SELECT * FROM postgresql.myapp.customers WHERE active = true
 UNION ALL
 SELECT * FROM iceberg.myapp.customers WHERE active = false;
 ```
 
-As good architects, we can hope to isolate these queries in the data access layers of our applications, but every storage change still has to ripple through any code that directly references the database. This makes evolution and migrations painful and time consuming.
+### Why Not Just Use Microservices or ORMs?
+
+Decoupling through microservices or ORMs absolutely works. If every database query in your organization flows through application code (ORMs, data access layers, microservices with ORM-backed models), you may not need virtual views.
+
+But microservices introduce network hops, serialization overhead, and deployment complexity. ORMs add their own abstractions and performance characteristics. For workloads where SQL is already the interface (analytics tools, BI dashboards, notebooks, data science workflows, internal tools), virtual views provide schema isolation at the query engine layer, trading microservice overhead for query planning complexity.
+
+As architectural patterns, virtual views and microservices aren't mutually exclusive. Microservices that query SQL directly (without ORMs) can benefit from virtual views that are defined using standard SQL. This provides decoupling at both the service boundary and the data access layer, often simpler than introducing an ORM.
 
 ### The Virtual View Approach
 
@@ -1949,11 +1953,11 @@ To the extent possible under law, the author has waived all copyright and relate
 
 - To the contributors like Roey Ogen and Ron Mirer who volunteer their time
 - To the practitioners who've used these patterns in production and provided feedback
-- To the Trino community for building the query engine that makes federation practical
+- To Starburst and the Trino community for the query engines that make federation routine
 - To the Iceberg community for creating an open table format for everyone
 - To Claude and Claude Code as thinking partners and co-authors
 
 ---
 
-**Version**: 0.62
-**Last Updated**: 2025-12-21
+**Version**: 0.63
+**Last Updated**: 2025-12-30
