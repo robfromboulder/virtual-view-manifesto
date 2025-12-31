@@ -14,7 +14,7 @@
 **Features**:
 - Generates Mermaid diagrams from Trino metadata
 - Shows cross-catalog dependencies
-- Identifies orphaned views (no dependents, no dependencies)
+- Identifies highest impact, highest centrality, and leaf views
 - Exports to Markdown for documentation
 - Detects circular dependencies
 - Apache 2 licensed

@@ -79,11 +79,11 @@ SELECT * FROM iceberg.myapp.customers WHERE active = false;
 
 ### Why Not Just Use Microservices or ORMs?
 
-Decoupling through microservices or ORMs absolutely works. If every database query in your organization flows through application code (ORMs, data access layers, microservices with ORM-backed models), you may not need virtual views.
+Decoupling through microservices or ORMs absolutely works. If every database query in your organization flows through application code (ORMs, microservices with ORM-backed models, custom data access APIs), then virtual views may not provide additional benefit at this point.
 
-But microservices introduce network hops, serialization overhead, and deployment complexity. ORMs add their own abstractions and performance characteristics. For workloads where SQL is already the interface (analytics tools, BI dashboards, notebooks, data science workflows, internal tools), virtual views provide schema isolation at the query engine layer, trading microservice overhead for query planning complexity.
+But microservices introduce network hops, serialization overhead, and deployment complexity. ORMs add their own abstractions and performance characteristics. For applications using SQL as their native query language, virtual views provide virtualization at the **query engine layer**, with negligible impact to query performance and without additional network calls or serialization.
 
-As architectural patterns, virtual views and microservices aren't mutually exclusive. Microservices that query SQL directly (without ORMs) can benefit from virtual views that are defined using standard SQL. This provides decoupling at both the service boundary and the data access layer, often simpler than introducing an ORM.
+As architectural patterns, virtual views and microservices aren't mutually exclusive. Microservices that query SQL directly (without ORMs) can benefit from virtual views that are defined using standard SQL. This provides decoupling at both the service boundary and the data access layer, and simpler than introducing an ORM.
 
 ### The Virtual View Approach
 

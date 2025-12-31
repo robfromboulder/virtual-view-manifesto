@@ -16,7 +16,7 @@ This is a technical manifesto about virtual view hierarchies in SQL databases, w
 
 ## 📝 Current Status
 
-**Version**: 0.64 (Draft)
+**Version**: 0.65 (Draft)
 **Last Updated**: 2025-12-30
 **Status**: Work in progress, refactored into modular section files
 **Next Milestone**: 1.0 release after incorporating feedback
@@ -164,13 +164,14 @@ SELECT ...
 
 ### Preferred Terminology
 
-| Use | Instead of | Reason |
-|-----|-----------|--------|
-| Virtual views | Logical views | Emphasizes detachment from physical |
-| Layer | Level | Implies responsibility, not just hierarchy |
-| Swappable | Replaceable | Implies designed for it |
-| Application catalog | Feature catalog | Either works, depends on context |
-| Federation | Data virtualization | More concrete |
+| Use                                    | Instead of                 | Reason                                             |
+|----------------------------------------|----------------------------|----------------------------------------------------|
+| Virtual views                          | Logical views              | Emphasizes detachment from physical                |
+| Base view                              | Parent view                | Keep consistent for clarify                        |
+| Layer                                  | Level                      | Implies responsibility, not just hierarchy         |
+| Swappable                              | Replaceable                | Implies designed for it                            |
+| Application catalog                    | Feature catalog            | Either works, depends on context                   |
+| Federation                             | Data virtualization        | More concrete                                      |
 | Virtualizing at the query engine layer | Database abstraction layer | Clarifies where in the stack virtual views operate |
 
 ### Content Standards

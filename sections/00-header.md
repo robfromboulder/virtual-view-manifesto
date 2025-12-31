@@ -1,7 +1,7 @@
 # The Virtual View Manifesto
 **Stop treating SQL views like decoration. Start using them as your application's data contract.**
 
-Classical SQL views are boring schema decoration for hiding joins, adding computed columns, and enforcing permissions. **Virtual views** are different. They're architectural components that decouple applications and agents from physical storage, enable prototyping and testing with static data, allow seamless migration to Iceberg, and support zero-downtime schema evolution. Virtual views can be layered into **hierarchies**, where any layer in the hierarchy can be replaced (even at runtime) without disrupting other layers or active queries.
+Classical SQL views are boring schema decoration for hiding joins, adding computed columns, and enforcing permissions. **Virtual views** are different. They're architectural components that decouple applications and agents from physical storage, enable prototyping and testing with static data, allow seamless migration to Iceberg, and support zero-downtime schema evolution. Virtual views are layered into **hierarchies**, where any layer in the hierarchy can be replaced (even at runtime) without disrupting other layers or active queries.
 
 Unlike using remote microservices or object-to-relational mapping tools (ORMs) to decouple applications and agents from databases, virtual views apply only to the query engine layer of a SQL database, without adding significant latency or serialization overhead. 
 

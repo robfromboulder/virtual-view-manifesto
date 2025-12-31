@@ -209,6 +209,32 @@ configure_test_mode(current_config)
 - Easy to switch between test and production modes
 - Git branches enable team collaboration on test scenarios
 
+**Testing broken database foreign keys and constraints:**:
+
+```sql
+-- Parent table: departments
+CREATE VIEW myapp.departments AS
+SELECT * FROM (VALUES
+(1, 'Engineering', 'alice@example.com'),
+(2, 'Sales', 'sales-mgr@example.com')
+) AS t (id, name, manager_email);
+
+-- Child table: employees with foreign key to departments
+CREATE VIEW myapp.employees AS
+SELECT * FROM (VALUES
+(101, 'Alice Chen', 1),      -- Valid: department_id=1 exists
+(102, 'Bob Smith', 99)       -- Invalid: department_id=99 doesn't exist
+) AS t (id, name, department_id);
+```
+
+In a real database with foreign key constraints, you couldn't insert Bob's record because department_id=99 doesn't exist. But with virtual views, you can create this invalid state to test:
+- How your application handles orphaned records
+- Whether error messages are helpful to users
+- If joins behave correctly when relationships are broken
+- Edge cases that are nearly impossible to reproduce in production
+
+This pattern works for any constraint violation: null values in required fields, duplicate keys, invalid enum values, or circular dependencies.
+
 ---
 
 ### Use Case 3: Zero-Downtime Schema Evolution

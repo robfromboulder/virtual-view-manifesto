@@ -410,7 +410,6 @@ CREATE VIEW myapp.users.all SECURITY INVOKER AS
 ```sql
 -- 10+ views spanning multiple layers
 -- Some views join multiple sources
--- Some views are used by multiple parents
 -- Manual tracking becomes difficult, even at this scale
 
 myapp.orders.all (entry)

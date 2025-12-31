@@ -1,5 +1,9 @@
 # Change Log
 
+## Version 0.65 (2025-12-30)
+- Added TODOS.md to track suggestions and questions
+- Minor tweaks to language in a few spots
+
 ## Version 0.64 (2025-12-30)
 - **Reordered "what's novel" and "what's controversial" sections**
 - Moved from header to end of introduction for better context and flow

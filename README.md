@@ -1,7 +1,7 @@
 # The Virtual View Manifesto
 **Stop treating SQL views like decoration. Start using them as your application's data contract.**
 
-Classical SQL views are boring schema decoration for hiding joins, adding computed columns, and enforcing permissions. **Virtual views** are different. They're architectural components that decouple applications and agents from physical storage, enable prototyping and testing with static data, allow seamless migration to Iceberg, and support zero-downtime schema evolution. Virtual views can be layered into **hierarchies**, where any layer in the hierarchy can be replaced (even at runtime) without disrupting other layers or active queries.
+Classical SQL views are boring schema decoration for hiding joins, adding computed columns, and enforcing permissions. **Virtual views** are different. They're architectural components that decouple applications and agents from physical storage, enable prototyping and testing with static data, allow seamless migration to Iceberg, and support zero-downtime schema evolution. Virtual views are layered into **hierarchies**, where any layer in the hierarchy can be replaced (even at runtime) without disrupting other layers or active queries.
 
 Unlike using remote microservices or object-to-relational mapping tools (ORMs) to decouple applications and agents from databases, virtual views apply only to the query engine layer of a SQL database, without adding significant latency or serialization overhead. 
 
@@ -105,11 +105,11 @@ SELECT * FROM iceberg.myapp.customers WHERE active = false;
 
 ### Why Not Just Use Microservices or ORMs?
 
-Decoupling through microservices or ORMs absolutely works. If every database query in your organization flows through application code (ORMs, data access layers, microservices with ORM-backed models), you may not need virtual views.
+Decoupling through microservices or ORMs absolutely works. If every database query in your organization flows through application code (ORMs, microservices with ORM-backed models, custom data access APIs), then virtual views may not provide additional benefit at this point.
 
-But microservices introduce network hops, serialization overhead, and deployment complexity. ORMs add their own abstractions and performance characteristics. For workloads where SQL is already the interface (analytics tools, BI dashboards, notebooks, data science workflows, internal tools), virtual views provide schema isolation at the query engine layer, trading microservice overhead for query planning complexity.
+But microservices introduce network hops, serialization overhead, and deployment complexity. ORMs add their own abstractions and performance characteristics. For applications using SQL as their native query language, virtual views provide virtualization at the **query engine layer**, with negligible impact to query performance and without additional network calls or serialization.
 
-As architectural patterns, virtual views and microservices aren't mutually exclusive. Microservices that query SQL directly (without ORMs) can benefit from virtual views that are defined using standard SQL. This provides decoupling at both the service boundary and the data access layer, often simpler than introducing an ORM.
+As architectural patterns, virtual views and microservices aren't mutually exclusive. Microservices that query SQL directly (without ORMs) can benefit from virtual views that are defined using standard SQL. This provides decoupling at both the service boundary and the data access layer, and simpler than introducing an ORM.
 
 ### The Virtual View Approach
 
@@ -561,7 +561,6 @@ CREATE VIEW myapp.users.all SECURITY INVOKER AS
 ```sql
 -- 10+ views spanning multiple layers
 -- Some views join multiple sources
--- Some views are used by multiple parents
 -- Manual tracking becomes difficult, even at this scale
 
 myapp.orders.all (entry)
@@ -807,6 +806,32 @@ configure_test_mode(current_config)
 - No risk of corrupting production data
 - Easy to switch between test and production modes
 - Git branches enable team collaboration on test scenarios
+
+**Testing broken database foreign keys and constraints:**:
+
+```sql
+-- Parent table: departments
+CREATE VIEW myapp.departments AS
+SELECT * FROM (VALUES
+(1, 'Engineering', 'alice@example.com'),
+(2, 'Sales', 'sales-mgr@example.com')
+) AS t (id, name, manager_email);
+
+-- Child table: employees with foreign key to departments
+CREATE VIEW myapp.employees AS
+SELECT * FROM (VALUES
+(101, 'Alice Chen', 1),      -- Valid: department_id=1 exists
+(102, 'Bob Smith', 99)       -- Invalid: department_id=99 doesn't exist
+) AS t (id, name, department_id);
+```
+
+In a real database with foreign key constraints, you couldn't insert Bob's record because department_id=99 doesn't exist. But with virtual views, you can create this invalid state to test:
+- How your application handles orphaned records
+- Whether error messages are helpful to users
+- If joins behave correctly when relationships are broken
+- Edge cases that are nearly impossible to reproduce in production
+
+This pattern works for any constraint violation: null values in required fields, duplicate keys, invalid enum values, or circular dependencies.
 
 ---
 
@@ -1889,7 +1914,7 @@ ORDER BY event_count DESC;
 **Features**:
 - Generates Mermaid diagrams from Trino metadata
 - Shows cross-catalog dependencies
-- Identifies orphaned views (no dependents, no dependencies)
+- Identifies highest impact, highest centrality, and leaf views
 - Exports to Markdown for documentation
 - Detects circular dependencies
 - Apache 2 licensed
@@ -1959,5 +1984,5 @@ To the extent possible under law, the author has waived all copyright and relate
 
 ---
 
-**Version**: 0.64
+**Version**: 0.65
 **Last Updated**: 2025-12-30
