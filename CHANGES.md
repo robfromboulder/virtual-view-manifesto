@@ -1,5 +1,10 @@
 # Change Log
 
+## Version 0.64 (2025-12-30)
+- **Reordered "what's novel" and "what's controversial" sections**
+- Moved from header to end of introduction for better context and flow
+- Readers now understand the pattern before evaluating novelty and controversy
+
 ## Version 0.63 (2025-12-30)
 - **Editorial refinements to header and introduction sections**
 - Better acknowledge the concerns of the skeptical reader

@@ -12,23 +12,6 @@ This manifesto isn't just theory, it provides practical strategies and examples 
 > [!CAUTION]
 > This is a work in progress and is neither complete nor peer reviewed.
 
-### What's Novel Here
-
-This manifesto synthesizes several existing ideas:
-1. **View hierarchies**: Not new, but rarely used systematically
-2. **Application-centric organization**: Adapts DDD patterns to data layer
-3. **Swappable data providers**: Switch between dev, test, staging, and production environments
-4. **Multi-database abstraction**: Use federation capabilities in Trino/Starburst/Athena/Presto
-5. **Iceberg migration focus**: Specific, pragmatic, and common use case for adoption
-
-The novelty is the **combination and systematic approach** and documentation as a **repeatable pattern**, not individual techniques. Like the [AJAX pattern](https://en.wikipedia.org/wiki/Ajax_(programming)) for web applications, which used capabilities already available in modern browsers, the capabilities for virtual views are already present in most modern database platforms, without requiring any configuration changes or custom extensions.
-
-### What's Controversial Here
-
-The core idea of being able to replace layers in a virtual view hierarchy, without having to rebuild the entire hierarchy, is not standardized in ANSI/ISO SQL. Runtime behaviors when replacing views do vary between database systems. Existing standards generally assume that view definitions are frozen at creation time and only updated during migrations (when applications are offline).
-
-This manifesto admittedly relies on multi-database platforms like Trino as the "practical standard" for how view replacement at runtime should behave. Even the most restrictive platforms (like Postgresql) generally allow views to be replaced if the column types do not change. But error handling and type checking varies by platform, so take care to validate these details when implementing virtual view hierarchies.
-
 ---
 
 ## Table of Contents
