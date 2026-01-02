@@ -2,6 +2,8 @@
 
 ## Version 0.66 (2026-01-02)
 - Edits to principles, expand copy and improve examples
+- Swapped order of principles 2 and 3
+- Tweaked principle titles
 
 ## Version 0.65 (2025-12-30)
 - Added TODOS.md to track suggestions and questions

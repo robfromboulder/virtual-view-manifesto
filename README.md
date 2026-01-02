@@ -155,9 +155,9 @@ This manifesto admittedly relies on multi-database platforms like Trino as the "
 ## Principles of Virtual View Hierarchies
 
 1. [Virtual Views Belong to Applications, Not Physical Schemas](#principle-1-virtual-views-belong-to-applications-not-physical-schemas)
-2. [Applications Query Virtual Views (Usually)](#principle-2-applications-query-virtual-views-usually)
-3. [Every Virtual View Has Multiple Versions](#principle-3-every-virtual-view-has-multiple-versions)
-4. [Assign One Owner Per Layer](#principle-4-assign-one-owner-per-layer)
+2. [Every Virtual View Has Multiple Versions](#principle-3-every-virtual-view-has-multiple-versions)
+3. [Applications Query Virtual Views (Usually)](#principle-2-applications-query-virtual-views-usually)
+4. [Assign One Owner Per Virtual View](#principle-4-assign-one-owner-per-virtual-view)
 5. [Never Change Column Types](#principle-5-never-change-column-types)
 6. [Use Invoker Permissions](#principle-6-use-invoker-permissions)
 7. [Store Views in a Canonical Location](#principle-7-store-views-in-a-canonical-location)
@@ -207,7 +207,60 @@ SELECT ... FROM postgresql.myapp.tbl_ord
 
 ---
 
-### Principle 2: Applications Query Virtual Views (Usually)
+### Principle 2: Every Virtual View Has Multiple Versions
+
+**Rule**: Design each view expecting to be replaced with static versions (for testing), live versions (for development, staging, production) and hybrid versions (for migrations or future integrations). Assume that view definitions will change at runtime, not just during upgrades or when applications are offline.
+
+**Why**: Enables prototyping, testing, and seamless migrations, with current and future data sources. If a view only ever has one definition, you're not using this pattern to its full potential.
+
+**Simple example (providing data for development and testing)**:
+```sql
+-- Good static data: typical values
+CREATE VIEW myapp.users.all SECURITY INVOKER AS
+SELECT * FROM (VALUES
+  (1, 'alice', 'alice@example.com'),
+  (2, 'bob', 'bob@example.com')
+) AS t (id, name, email);
+
+-- Edge case static data: boundary conditions for testing
+CREATE OR REPLACE VIEW myapp.users.all SECURITY INVOKER AS
+SELECT * FROM (VALUES
+  (1, 'alice', 'alice@example.com'),
+  (9223372036854775807, 'max_id_user', 'test@example.com'),
+  (3, NULL, 'no-name@example.com'),
+  (4, 'unicode_user', 'emoji-👋@example.com')
+) AS t (id, name, email);
+```
+
+**Realistic example (moving from prototype to live database)**:
+```sql
+-- Version 1: Prototype with static data
+CREATE VIEW myapp.orders.all SECURITY INVOKER AS
+SELECT * FROM (VALUES
+  (1, 101, TIMESTAMP '2024-01-15 10:30:00', 'pending'),
+  (2, 102, TIMESTAMP '2024-01-16 14:22:00', 'shipped'),
+  (3, 101, TIMESTAMP '2024-01-17 09:15:00', 'delivered')
+) AS t (order_id, customer_id, order_time, status);
+
+-- Version 2: Replace with live database when ready
+CREATE OR REPLACE VIEW myapp.orders.all SECURITY INVOKER AS
+SELECT
+  CAST(order_id AS BIGINT) as order_id,
+  CAST(customer_id AS BIGINT) as customer_id,
+  CAST(order_time AS TIMESTAMP(3)) as order_time,
+  CAST(status AS VARCHAR) as status
+FROM postgresql.myapp.orders;
+```
+
+**Implementation**:
+- Start new projects and feature prototypes with static data views
+- Keep test views in version control alongside production definitions
+- Document expected version progression paths from development to production
+- Use environment-specific catalogs if needed (`myapp_dev`, `myapp_prod`)
+
+---
+
+### Principle 3: Applications Query Virtual Views (Usually)
 
 **Rule**: Applications should reference virtual views by default to get all the benefits of this pattern. Direct physical table access is acceptable for legacy code and performance-critical paths.
 
@@ -273,62 +326,10 @@ public void generateReports() {
 - For new code and new features, use virtual views by default
 - For legacy code, migrate opportunistically during refactors
 - Document what paths use direct access and why
----
-
-### Principle 3: Every Virtual View Has Multiple Versions
-
-**Rule**: Design each view expecting to be replaced with static versions (for testing), live versions (for development, staging, production) and hybrid versions (for migrations or future integrations). Assume that view definitions will change at runtime, not just during upgrades or when applications are offline.
-
-**Why**: Enables prototyping, testing, and seamless migrations, with current and future data sources. If a view only ever has one definition, you're not using this pattern to its full potential.
-
-**Simple example (providing data for development and testing)**:
-```sql
--- Good static data: typical values
-CREATE VIEW myapp.users.all SECURITY INVOKER AS
-SELECT * FROM (VALUES
-  (1, 'alice', 'alice@example.com'),
-  (2, 'bob', 'bob@example.com')
-) AS t (id, name, email);
-
--- Edge case static data: boundary conditions for testing
-CREATE OR REPLACE VIEW myapp.users.all SECURITY INVOKER AS
-SELECT * FROM (VALUES
-  (1, 'alice', 'alice@example.com'),
-  (9223372036854775807, 'max_id_user', 'test@example.com'),
-  (3, NULL, 'no-name@example.com'),
-  (4, 'unicode_user', 'emoji-👋@example.com')
-) AS t (id, name, email);
-```
-
-**Realistic example (moving from prototype to live database)**:
-```sql
--- Version 1: Prototype with static data
-CREATE VIEW myapp.orders.all SECURITY INVOKER AS
-SELECT * FROM (VALUES
-  (1, 101, TIMESTAMP '2024-01-15 10:30:00', 'pending'),
-  (2, 102, TIMESTAMP '2024-01-16 14:22:00', 'shipped'),
-  (3, 101, TIMESTAMP '2024-01-17 09:15:00', 'delivered')
-) AS t (order_id, customer_id, order_time, status);
-
--- Version 2: Replace with live database when ready
-CREATE OR REPLACE VIEW myapp.orders.all SECURITY INVOKER AS
-SELECT
-  CAST(order_id AS BIGINT) as order_id,
-  CAST(customer_id AS BIGINT) as customer_id,
-  CAST(order_time AS TIMESTAMP(3)) as order_time,
-  CAST(status AS VARCHAR) as status
-FROM postgresql.myapp.orders;
-```
-
-**Implementation**:
-- Start new projects and feature prototypes with static data views
-- Keep test views in version control alongside production definitions
-- Document expected version progression paths from development to production
-- Use environment-specific catalogs if needed (`myapp_dev`, `myapp_prod`)
 
 ---
 
-### Principle 4: Assign One Owner Per Layer
+### Principle 4: Assign One Owner Per Virtual View
 
 **Rule**: Assign each layer in a view hierarchy to a single actor, agent or team. Coordinate changes through that owner.
 
