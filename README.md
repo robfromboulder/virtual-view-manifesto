@@ -169,18 +169,16 @@ This manifesto admittedly relies on multi-database platforms like Trino as the "
 
 **Rule**: Organize views by application or feature, not by physical data source.
 
-**Why**: Physical schemas reflect storage concerns. Applications have different concerns. When views mirror physical schema organization, they are rigid and provide no abstraction value.
+**Why**: Physical schemas reflect storage concerns. Applications have different concerns. When views mirror physical schema organization, they are rigid and provide no abstraction value. Instead, assume that virtual views can use data from zero to many databases, and keep virtual views in catalogs of their own.
 
 **Simple example**:
 ```sql
--- Bad: View stored in physical schema
-CREATE VIEW postgresql.myapp.active_customers AS ... 
-
--- Bad: Separate catalog for views, but still mirrors physical schema
-CREATE VIEW postgresql_views.myapp.active_customers AS ... 
-
 -- Good: Organized by application, by feature (customers)
 CREATE VIEW myapp.customers.active AS ...
+
+-- Bad: View stored in physical schema with tables
+CREATE VIEW postgresql.myapp.active_customers AS
+SELECT ... FROM postgresql.myapp.tbl_cust
 ```
 
 **Realistic example**:
@@ -188,18 +186,17 @@ CREATE VIEW myapp.customers.active AS ...
 -- Application: E-commerce platform
 -- Features: order processing, inventory, analytics
 
--- Bad: Views mixed into in physical schemas with tables
-CREATE VIEW postgresql.orders.current_orders AS ...
-CREATE VIEW postgresql.inventory.stock_levels AS ...
-CREATE VIEW mysql.legacy.product_catalog AS ...
-
--- Good: Organized by feature
+-- Good: Organized by app, then feature
 CREATE VIEW myapp.orders.current AS ...
 CREATE VIEW myapp.orders.historical AS ...
-CREATE VIEW myapp.inventory.available_stock AS ...
-CREATE VIEW myapp.inventory.reserved_stock AS ...
 CREATE VIEW myapp.products.catalog AS ...
 CREATE VIEW myapp.products.pricing AS ...
+CREATE VIEW myapp.stock.available AS ...
+CREATE VIEW myapp.stock.reserved AS ...
+
+-- Bad: Separate catalog for views, but still mirrors physical schema
+CREATE VIEW postgresql_views.myapp.orders AS
+SELECT ... FROM postgresql.myapp.tbl_ord
 ```
 
 **Implementation**:
@@ -212,9 +209,9 @@ CREATE VIEW myapp.products.pricing AS ...
 
 ### Principle 2: Applications Query Virtual Views (Usually)
 
-**Rule**: Application code should reference virtual views whenever possible. Direct physical table access is acceptable for legacy code and performance-critical paths.
+**Rule**: Applications should reference virtual views by default to get all the benefits of this pattern. Direct physical table access is acceptable for legacy code and performance-critical paths.
 
-**Why**: Enables major storage changes without major application changes, but recognizes pragmatic constraints of real systems. Use virtual views for new code and high-value refactoring, and direct access when proven necessary. Both patterns can coexist peacefully.
+**Why**: Enables major storage changes without major application changes, but recognizes pragmatic constraints of real systems. Use virtual views for new code and high-value refactoring, and direct access when necessary. Both approaches can coexist peacefully, using standard SQL in each case.
 
 ```mermaid
 flowchart TD
@@ -273,70 +270,67 @@ public void generateReports() {
 ```
 
 **Implementation**:
-- New code: use virtual views by default
-- Legacy code: migrate opportunistically during refactors
+- For new code and new features, use virtual views by default
+- For legacy code, migrate opportunistically during refactors
 - Document what paths use direct access and why
-- Performance test to verify view overhead is acceptable (usually negligible)
 ---
 
 ### Principle 3: Every Virtual View Has Multiple Versions
 
-**Rule**: Design each view expecting to be replaced with static versions (for testing), live versions (for development, staging, production) and hybrid versions (for migrations and dynamic configurations).
+**Rule**: Design each view expecting to be replaced with static versions (for testing), live versions (for development, staging, production) and hybrid versions (for migrations or future integrations). Assume that view definitions will change at runtime, not just during upgrades or when applications are offline.
 
 **Why**: Enables prototyping, testing, and seamless migrations, with current and future data sources. If a view only ever has one definition, you're not using this pattern to its full potential.
 
-**Simple example (prototyping)**:
+**Simple example (providing data for development and testing)**:
 ```sql
--- Version 1: Prototype with static data
+-- Good static data: typical values
 CREATE VIEW myapp.users.all SECURITY INVOKER AS
 SELECT * FROM (VALUES
   (1, 'alice', 'alice@example.com'),
   (2, 'bob', 'bob@example.com')
 ) AS t (id, name, email);
 
--- Version 2: Development database
+-- Edge case static data: boundary conditions for testing
 CREATE OR REPLACE VIEW myapp.users.all SECURITY INVOKER AS
-SELECT
-  CAST(id AS BIGINT) as id,
-  CAST(name AS VARCHAR) as name,
-  CAST(email AS VARCHAR) as email
-FROM postgresql.myapp.users;
+SELECT * FROM (VALUES
+  (1, 'alice', 'alice@example.com'),
+  (9223372036854775807, 'max_id_user', 'test@example.com'),
+  (3, NULL, 'no-name@example.com'),
+  (4, 'unicode_user', 'emoji-👋@example.com')
+) AS t (id, name, email);
 ```
 
-**Realistic example (optional hybrid storage)**:
+**Realistic example (moving from prototype to live database)**:
 ```sql
--- Initially: All data in PostgreSQL
-CREATE VIEW myapp.events.all SECURITY INVOKER AS
-SELECT
-  CAST(event_id AS BIGINT) as event_id,
-  CAST(event_type AS VARCHAR) as event_type,
-  CAST(event_time AS TIMESTAMP(3)) as event_time,
-  CAST(user_id AS BIGINT) as user_id
-FROM postgresql.myapp.events;
+-- Version 1: Prototype with static data
+CREATE VIEW myapp.orders.all SECURITY INVOKER AS
+SELECT * FROM (VALUES
+  (1, 101, TIMESTAMP '2024-01-15 10:30:00', 'pending'),
+  (2, 102, TIMESTAMP '2024-01-16 14:22:00', 'shipped'),
+  (3, 101, TIMESTAMP '2024-01-17 09:15:00', 'delivered')
+) AS t (order_id, customer_id, order_time, status);
 
--- When enabled by feature flag: hybrid PostgreSQL + Iceberg
--- Data older than 7 days is replicated separately
-CREATE OR REPLACE VIEW myapp.events.all SECURITY INVOKER AS
-SELECT event_id, event_type, event_time, user_id
-FROM postgresql.myapp.events
-WHERE event_time > CURRENT_DATE - INTERVAL '7' DAYS
-UNION ALL
-SELECT event_id, event_type, event_time, user_id
-FROM iceberg.myapp.events
-WHERE event_time <= CURRENT_DATE - INTERVAL '7' DAYS;
+-- Version 2: Replace with live database when ready
+CREATE OR REPLACE VIEW myapp.orders.all SECURITY INVOKER AS
+SELECT
+  CAST(order_id AS BIGINT) as order_id,
+  CAST(customer_id AS BIGINT) as customer_id,
+  CAST(order_time AS TIMESTAMP(3)) as order_time,
+  CAST(status AS VARCHAR) as status
+FROM postgresql.myapp.orders;
 ```
 
 **Implementation**:
-- Start every project with static data views
+- Start new projects and feature prototypes with static data views
 - Keep test views in version control alongside production definitions
-- Document expected version progression path
+- Document expected version progression paths from development to production
 - Use environment-specific catalogs if needed (`myapp_dev`, `myapp_prod`)
 
 ---
 
 ### Principle 4: Assign One Owner Per Layer
 
-**Rule**: Assign each layer in a view hierarchy to a single actor or agent. Coordinate changes through that owner.
+**Rule**: Assign each layer in a view hierarchy to a single actor, agent or team. Coordinate changes through that owner.
 
 **Why**: Prevents race conditions, conflicting updates, and unclear responsibility. Views have no locking mechanism during definition replacement, and queries won't be canceled or restarted if definitions change.
 
@@ -495,7 +489,7 @@ GROUP BY date_trunc('month', order_date);
 - Test views with user accounts that have minimal permissions
 - Consider using `SECURITY DEFINER` only for controlled privilege escalation with strong justification
 
->[!TIP]
+> [!TIP]
 > Trino's default behavior may vary by connector. Always specify explicitly, like all our examples.
 
 ---
@@ -1984,5 +1978,5 @@ To the extent possible under law, the author has waived all copyright and relate
 
 ---
 
-**Version**: 0.65
-**Last Updated**: 2025-12-30
+**Version**: 0.66
+**Last Updated**: 2026-01-02

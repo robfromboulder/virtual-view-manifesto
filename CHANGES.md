@@ -1,5 +1,8 @@
 # Change Log
 
+## Version 0.66 (2026-01-02)
+- Edits to principles, expand copy and improve examples
+
 ## Version 0.65 (2025-12-30)
 - Added TODOS.md to track suggestions and questions
 - Minor tweaks to language in a few spots

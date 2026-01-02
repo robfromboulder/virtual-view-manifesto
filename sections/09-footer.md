@@ -21,5 +21,5 @@ To the extent possible under law, the author has waived all copyright and relate
 
 ---
 
-**Version**: 0.65
-**Last Updated**: 2025-12-30
+**Version**: 0.66
+**Last Updated**: 2026-01-02

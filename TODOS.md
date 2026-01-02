@@ -17,13 +17,10 @@
 
 ## Principles
 
-* add intro paragraph ahead of list of principles
-* principle 1: put "good" cases first to better set up the contrast
-* principle 3: simplify simple example to good data and edge case data, realistic example to static data replaced by postgresql (don't introduce replication case yet)
+(none)
 
 ## Use Cases
 
-* add intro paragraph ahead of list of use cases
 * use case 1: (realistic example) uses select...sum(), count() without aggregation?, also timeline visualization might not be that helpful, mention avoiding premature optimization of physical schema
 * use case 2: since viewzoo just stores views in json format, it's actually easy to write these by hand, or generate them programatically
 * use case 3: should not recommend bottom-up replacement, this actually breaks the hierarchy (and should be covered as a pitfall) but instead create a bottom-up copy of the hierarchy with the needed changes and then flip the application's entry point (and then remove any old views very carefully), should also show gradual connector case (incrementally replacing MySQL with PostgreSQL)
