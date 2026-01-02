@@ -331,7 +331,7 @@ public void generateReports() {
 
 ### Principle 4: Assign One Owner Per Virtual View
 
-**Rule**: Assign each layer in a view hierarchy to a single actor, agent or team. Coordinate changes through that owner.
+**Rule**: Assign each layer in a virtual view hierarchy to a single actor, agent or team. Always coordinate changes through this owner.
 
 **Why**: Prevents race conditions, conflicting updates, and unclear responsibility. Views have no locking mechanism during definition replacement, and queries won't be canceled or restarted if definitions change.
 
