@@ -598,11 +598,11 @@ flowchart TD
 
 1. [Rapid Prototyping](#use-case-1-rapid-prototyping)
 2. [Testing Data Edge Cases](#use-case-2-testing-data-edge-cases)
-3. [Zero-Downtime Schema Evolution](#use-case-3-zero-downtime-schema-evolution)
+3. [Runtime Configuration Switching](#use-case-3-runtime-configuration-switching)
 4. [Modular Storage for Features and Agents](#use-case-4-modular-storage-for-features-and-agents)
-5. [Runtime Configuration Switching](#use-case-5-runtime-configuration-switching)
-6. [Ensuring Privacy and Compliance](#use-case-6-ensuring-privacy-and-compliance)
-7. [Extending Applications to Iceberg](#use-case-7-extending-applications-to-iceberg)
+5. [Zero-Downtime Schema Evolution](#use-case-5-zero-downtime-schema-evolution)
+6. [Extending Applications to Iceberg](#use-case-6-extending-applications-to-iceberg)
+7. [Enforcing Privacy and Compliance](#use-case-7-enforcing-privacy-and-compliance)
 8. [Cost and Availability Routing](#use-case-8-cost-and-availability-routing)
 
 ---
@@ -675,31 +675,12 @@ WHERE o.status IN ('completed', 'shipped')
 GROUP BY c.customer_id;
 ```
 
-**Progression stages**:
-1. **Static VALUES**: UI and business logic development
-2. **Test database**: Integration testing
-3. **Staging database**: Beta testing with real-like data
-4. **Production database**: Live traffic
-5. **Hybrid (optional)**: Add Iceberg for scale
-
-**Timeline visualization**:
-```mermaid
-gantt
-    title View Definition Evolution
-    dateFormat YYYY-MM-DD
-    section View: analytics.customer_lifetime_value
-    Static VALUES       :a1, 2024-01-01, 14d
-    Dev Database        :a2, 2024-01-15, 35d
-    Staging Database    :a3, 2024-02-20, 14d
-    Prod Database       :a4, 2024-03-05, 2024-12-31
-    section Application Code
-    Unchanged           :2024-01-01, 2024-12-31
-```
-
 **Benefits**:
 - Start building before infrastructure is ready
+- Provide excellent performance for prototype features
 - Validate requirements with stakeholders using realistic UI
 - Avoid wasting time on infrastructure for features that get cancelled
+- Delay optimization of physical schema until features have jelled
 - Smooth transition from prototype to first implementation
 
 ---
@@ -830,11 +811,149 @@ This pattern works for any constraint violation: null values in required fields,
 
 ---
 
-### Use Case 3: Zero-Downtime Schema Evolution
+### Use Case 3: Runtime Configuration Switching
 
-**The Challenge**: Migrate between schema versions without application downtime, and without copying or reimporting existing datasets.
+**The Challenge**: Need to dynamically switch between different data sources based on feature flags, environment, or runtime configuration without redeploying application code.
 
-**The Solution**: Incrementally change a view hierarchy, or create an updated copy of a view hierarchy, to enable schema migrations without downtime or interrupting any queries. 
+**The Solution**: Programmatically replace view definitions based on runtime configuration, enabling feature flags, A/B testing, and environment switching (dev/staging/prod), without having to restart the applications.
+
+**Example with programmatic switching**:
+```python
+def configure_data_layer(config):
+    """Update view definitions based on current configuration"""
+
+    if config.feature_flags.get('use_iceberg'):
+        # Production with Iceberg
+        execute_sql("""
+            CREATE OR REPLACE VIEW myapp.events.all SECURITY INVOKER AS
+            SELECT * FROM iceberg.warehouse.events
+        """)
+    elif config.environment == 'staging':
+        # Staging database
+        execute_sql("""
+            CREATE OR REPLACE VIEW myapp.events.all SECURITY INVOKER AS
+            SELECT * FROM postgresql.staging.events
+        """)
+    elif config.environment == 'development':
+        # Static test data
+        execute_sql("""
+            CREATE OR REPLACE VIEW myapp.events.all SECURITY INVOKER AS
+            SELECT * FROM (VALUES
+              (1, 'test', CURRENT_TIMESTAMP)
+            ) AS t (id, event, ts)
+        """)
+    else:
+        # Production PostgreSQL
+        execute_sql("""
+            CREATE OR REPLACE VIEW myapp.events.all SECURITY INVOKER AS
+            SELECT * FROM postgresql.prod.events
+        """)
+
+# Called at application startup or when config changes
+configure_data_layer(current_config)
+```
+
+**Git-based switching with ViewZoo**:
+```bash
+# Feature flag: Enable Iceberg backend
+git checkout feature/iceberg-storage
+
+# ViewZoo reads updated view definitions from filesystem
+# No programmatic CREATE OR REPLACE needed
+# Just switch branches and restart Trino workers
+
+# A/B test: 50% of traffic to new backend
+# Use separate Trino clusters reading different git branches
+```
+
+**Use cases**:
+- Feature flags for gradual rollout of new data sources
+- Environment-specific configurations (dev/staging/prod)
+- Debug mode with synthetic data
+- A/B testing different storage backends for performance
+- Per-customer configurations in multi-tenant systems
+
+**Benefits**:
+- Zero code deployment for configuration changes
+- Safe experimentation with new data sources
+- Easy rollback via configuration or git branch
+- Support multiple environments from single codebase
+
+**Feature Flagging Data Sources**:
+- Programmatically enable/disable data sources via view replacement
+- Gradually roll out new connectors to subset of users
+- A/B test different storage backends for performance comparison
+
+**Gradual Connector Migration**:
+- Move from MySQL to PostgreSQL table by table
+- UNION old and new sources during transition period
+- Eventually remove old source when migration complete
+
+---
+
+### Use Case 4: Modular Storage for Features and Agents
+
+**The Challenge**: Multiple teams need independent control over designing, implementing, and migrating their view hierarchies, with minimal coordination needed with other teams.
+
+**The Solution**: Create isolated view hierarchies per feature or agent, enabling teams to develop, test, and deploy their data layers independently without cross-team coordination or risk of breaking changes.
+
+**Example**:
+```sql
+-- Feature 1: Order Processing (owned by checkout team)
+CREATE VIEW ecommerce.orders.current AS ...;
+CREATE VIEW ecommerce.orders.historical AS ...;
+CREATE VIEW ecommerce.orders.merged AS ...;
+
+-- Feature 2: Inventory Management (owned by warehouse team)
+CREATE VIEW ecommerce.inventory.available AS ...;
+CREATE VIEW ecommerce.inventory.reserved AS ...;
+CREATE VIEW ecommerce.inventory.merged AS ...;
+
+-- Feature 3: Analytics (owned by data team, may reference others)
+CREATE VIEW ecommerce.analytics.sales_summary AS ...;
+CREATE VIEW ecommerce.analytics.inventory_turnover AS ...;
+```
+
+**Architecture visualization**:
+```mermaid
+flowchart LR
+    subgraph Feature1["Order Processing Team"]
+        O1["ecommerce.orders.current"] --> O2["ecommerce.orders.merged"]
+        O2 --> DB1[("PostgreSQL<br/>ecommerce")]
+    end
+
+    subgraph Feature2["Inventory Team"]
+        I1["ecommerce.inventory.available"] --> I2["ecommerce.inventory.merged"]
+        I2 --> DB2[("Redis Cache<br/>ecommerce")]
+    end
+
+    subgraph Feature3["Analytics Team"]
+        A1["ecommerce.analytics.sales_summary"] --> O1
+        A1 --> I1
+    end
+```
+
+**Benefits**:
+- Teams work independently without coordination
+- Clear ownership boundaries per feature
+- Easy to understand scope and blast radius of changes
+- Features can be developed, tested, and deployed independently
+- Reduces cross-team dependencies and bottlenecks
+
+**Development Environment Isolation**:
+- Each developer gets own catalog with custom view definitions
+- Test schema changes without affecting team
+- Merge view definitions like code via pull requests
+
+---
+
+### Use Case 5: Zero-Downtime Schema Evolution
+
+**The Challenge**: When teams independently evolve their schemas (UC4), maintain backward compatibility without coordination overhead or downtime.
+
+**The Solution**: Virtual views make schema coordination dissolve when teams already own their view hierarchies (UC4) and can swap implementations at runtime (UC3). Incrementally change a view hierarchy, or create an updated copy of a view hierarchy, to enable schema migrations without downtime or interrupting any queries.
+
+This isn't about replacing migration tools like Flyway or Liquibase. It's about how virtual views make the coordination problem manageable by scoping migrations to team-owned view hierarchies rather than company-wide database schemas.
 
 **Simple example**:
 ```sql
@@ -937,145 +1056,91 @@ This ensures dependent views always have valid sources to query from during repl
 - Support gradual migrations with parallel systems
 - Maintain backward compatibility during transitions
 - Hide physical schema complexity from applications
+- Schema evolution scoped to team-owned hierarchies, not company-wide coordination
 
 ---
 
-### Use Case 4: Modular Storage for Features and Agents
+### Use Case 6: Extending Applications to Iceberg
 
-**The Challenge**: Multiple teams need independent control over designing, implementing, and migrating their view hierarchies, with minimal coordination needed with other teams.
+**The Challenge**: Existing application runs on PostgreSQL (or MySQL, etc.). Want to add Iceberg for cost-effective long-term storage, but can't rewrite application code. Need seamless transition, no downtime, no dual codebases.
 
-**The Solution**: Create isolated view hierarchies per feature or agent, enabling teams to develop, test, and deploy their data layers independently without cross-team coordination or risk of breaking changes.
+**The Solution**: Replace physical table references with virtual views pointing to legacy storage, then optionally add Iceberg using `UNION ALL` for historical data, without requiring any changes to application queries.
 
-**Example**:
+**Phase 1: Establish the abstraction**
+
+Before:
 ```sql
--- Feature 1: Order Processing (owned by checkout team)
-CREATE VIEW ecommerce.orders.current AS ...;
-CREATE VIEW ecommerce.orders.historical AS ...;
-CREATE VIEW ecommerce.orders.merged AS ...;
-
--- Feature 2: Inventory Management (owned by warehouse team)
-CREATE VIEW ecommerce.inventory.available AS ...;
-CREATE VIEW ecommerce.inventory.reserved AS ...;
-CREATE VIEW ecommerce.inventory.merged AS ...;
-
--- Feature 3: Analytics (owned by data team, may reference others)
-CREATE VIEW ecommerce.analytics.sales_summary AS ...;
-CREATE VIEW ecommerce.analytics.inventory_turnover AS ...;
+-- Application queries physical table directly
+SELECT * FROM postgresql.myapp.logs WHERE event_time > ?
 ```
 
-**Architecture visualization**:
+After:
+```sql
+-- Create virtual view as intermediary
+CREATE VIEW myapp.data.logs SECURITY INVOKER AS
+SELECT
+  CAST(id AS BIGINT) as log_id,
+  CAST(event AS VARCHAR) as event_type,
+  CAST(timestamp AS TIMESTAMP(3)) as event_time,
+  CAST(user_id AS BIGINT) as user_id
+FROM postgresql.myapp.logs;
+
+-- Application code changes once (connection string only)
+-- Now queries: SELECT * FROM myapp.data.logs WHERE event_time > ?
+```
+
+**Phase 2: Add Iceberg in hybrid mode**
+
+```sql
+-- Union PostgreSQL (hot, recent data) with Iceberg (cold, historical)
+CREATE OR REPLACE VIEW myapp.data.logs SECURITY INVOKER AS
+-- Recent data still in PostgreSQL
+SELECT log_id, event_type, event_time, user_id
+FROM postgresql.myapp.logs
+WHERE event_time > CURRENT_DATE - INTERVAL '30' DAYS
+  AND replicated = false
+UNION ALL
+-- Historical data in Iceberg
+SELECT log_id, event_type, event_time, user_id
+FROM iceberg.myapp.logs
+WHERE event_time <= CURRENT_DATE - INTERVAL '30' DAYS;
+```
+
+Zero application changes. Behind the scenes, a replication job moves old data from PostgreSQL to Iceberg and marks rows as replicated.
+
+**Phase 3: Eventually migrate entirely (optional)**
+
+```sql
+-- Once all data is in Iceberg and PostgreSQL is ready to decommission
+CREATE OR REPLACE VIEW myapp.data.logs SECURITY INVOKER AS
+SELECT log_id, event_type, event_time, user_id
+FROM iceberg.myapp.logs;
+```
+
+**What we're NOT covering**: How replication works, Iceberg table maintenance, partition strategies, compaction. This manifesto focuses on the view architecture that enables migration.
+
+**Benefits**:
+- Zero application downtime during migration
+- No "big bang" rewrite risk
+- Test Iceberg integration incrementally
+- Rollback is trivial (replace view definition)
+- Works with monoliths and microservices
+
 ```mermaid
-flowchart LR
-    subgraph Feature1["Order Processing Team"]
-        O1["ecommerce.orders.current"] --> O2["ecommerce.orders.merged"]
-        O2 --> DB1[("PostgreSQL<br/>ecommerce")]
-    end
-
-    subgraph Feature2["Inventory Team"]
-        I1["ecommerce.inventory.available"] --> I2["ecommerce.inventory.merged"]
-        I2 --> DB2[("Redis Cache<br/>ecommerce")]
-    end
-
-    subgraph Feature3["Analytics Team"]
-        A1["ecommerce.analytics.sales_summary"] --> O1
-        A1 --> I1
-    end
+gantt
+    title Iceberg Migration Timeline
+    dateFormat YYYY-MM-DD
+    section Application Code
+    SELECT * FROM myapp.data.logs :2024-01-01, 2024-12-31
+    section View Implementation
+    PostgreSQL Only       :a1, 2024-01-01, 90d
+    PG + Iceberg Hybrid   :a2, 2024-04-01, 120d
+    Iceberg Only          :a3, 2024-08-01, 2024-12-31
 ```
-
-**Benefits**:
-- Teams work independently without coordination
-- Clear ownership boundaries per feature
-- Easy to understand scope and blast radius of changes
-- Features can be developed, tested, and deployed independently
-- Reduces cross-team dependencies and bottlenecks
-
-**Development Environment Isolation**:
-- Each developer gets own catalog with custom view definitions
-- Test schema changes without affecting team
-- Merge view definitions like code via pull requests
 
 ---
 
-### Use Case 5: Runtime Configuration Switching
-
-**The Challenge**: Need to dynamically switch between different data sources based on feature flags, environment, or runtime configuration without redeploying application code.
-
-**The Solution**: Programmatically replace view definitions based on runtime configuration, enabling feature flags, A/B testing, and environment switching (dev/staging/prod), without having to restart the applications.
-
-**Example with programmatic switching**:
-```python
-def configure_data_layer(config):
-    """Update view definitions based on current configuration"""
-
-    if config.feature_flags.get('use_iceberg'):
-        # Production with Iceberg
-        execute_sql("""
-            CREATE OR REPLACE VIEW myapp.events.all SECURITY INVOKER AS
-            SELECT * FROM iceberg.warehouse.events
-        """)
-    elif config.environment == 'staging':
-        # Staging database
-        execute_sql("""
-            CREATE OR REPLACE VIEW myapp.events.all SECURITY INVOKER AS
-            SELECT * FROM postgresql.staging.events
-        """)
-    elif config.environment == 'development':
-        # Static test data
-        execute_sql("""
-            CREATE OR REPLACE VIEW myapp.events.all SECURITY INVOKER AS
-            SELECT * FROM (VALUES
-              (1, 'test', CURRENT_TIMESTAMP)
-            ) AS t (id, event, ts)
-        """)
-    else:
-        # Production PostgreSQL
-        execute_sql("""
-            CREATE OR REPLACE VIEW myapp.events.all SECURITY INVOKER AS
-            SELECT * FROM postgresql.prod.events
-        """)
-
-# Called at application startup or when config changes
-configure_data_layer(current_config)
-```
-
-**Git-based switching with ViewZoo**:
-```bash
-# Feature flag: Enable Iceberg backend
-git checkout feature/iceberg-storage
-
-# ViewZoo reads updated view definitions from filesystem
-# No programmatic CREATE OR REPLACE needed
-# Just switch branches and restart Trino workers
-
-# A/B test: 50% of traffic to new backend
-# Use separate Trino clusters reading different git branches
-```
-
-**Use cases**:
-- Feature flags for gradual rollout of new data sources
-- Environment-specific configurations (dev/staging/prod)
-- Debug mode with synthetic data
-- A/B testing different storage backends for performance
-- Per-customer configurations in multi-tenant systems
-
-**Benefits**:
-- Zero code deployment for configuration changes
-- Safe experimentation with new data sources
-- Easy rollback via configuration or git branch
-- Support multiple environments from single codebase
-
-**Feature Flagging Data Sources**:
-- Programmatically enable/disable data sources via view replacement
-- Gradually roll out new connectors to subset of users
-- A/B test different storage backends for performance comparison
-
-**Gradual Connector Migration**:
-- Move from MySQL to PostgreSQL table by table
-- UNION old and new sources during transition period
-- Eventually remove old source when migration complete
----
-
-### Use Case 6: Ensuring Privacy and Compliance
+### Use Case 7: Enforcing Privacy and Compliance
 
 **The Challenge**: Implement tenant isolation, right-to-be-forgotten filtering, and PII redaction without having to repeat these restrictions in every query.
 
@@ -1155,86 +1220,6 @@ flowchart TD
     Privacy -->|Tenant isolation + PII redaction| App
     Active -->|Filters deleted customers| Privacy
     Base -->|Raw data| Active
-```
-
----
-
-### Use Case 7: Extending Applications to Iceberg
-
-**The Challenge**: Existing application runs on PostgreSQL (or MySQL, etc.). Want to add Iceberg for cost-effective long-term storage, but can't rewrite application code. Need seamless transition, no downtime, no dual codebases.
-
-**The Solution**: Replace physical table references with virtual views pointing to legacy storage, then optionally add Iceberg using `UNION ALL` for historical data, without requiring any changes to application queries.
-
-**Phase 1: Establish the abstraction**
-
-Before:
-```sql
--- Application queries physical table directly
-SELECT * FROM postgresql.myapp.logs WHERE event_time > ?
-```
-
-After:
-```sql
--- Create virtual view as intermediary
-CREATE VIEW myapp.data.logs SECURITY INVOKER AS
-SELECT
-  CAST(id AS BIGINT) as log_id,
-  CAST(event AS VARCHAR) as event_type,
-  CAST(timestamp AS TIMESTAMP(3)) as event_time,
-  CAST(user_id AS BIGINT) as user_id
-FROM postgresql.myapp.logs;
-
--- Application code changes once (connection string only)
--- Now queries: SELECT * FROM myapp.data.logs WHERE event_time > ?
-```
-
-**Phase 2: Add Iceberg in hybrid mode**
-
-```sql
--- Union PostgreSQL (hot, recent data) with Iceberg (cold, historical)
-CREATE OR REPLACE VIEW myapp.data.logs SECURITY INVOKER AS
--- Recent data still in PostgreSQL
-SELECT log_id, event_type, event_time, user_id
-FROM postgresql.myapp.logs
-WHERE event_time > CURRENT_DATE - INTERVAL '30' DAYS
-  AND replicated = false
-UNION ALL
--- Historical data in Iceberg
-SELECT log_id, event_type, event_time, user_id
-FROM iceberg.myapp.logs
-WHERE event_time <= CURRENT_DATE - INTERVAL '30' DAYS;
-```
-
-Zero application changes. Behind the scenes, a replication job moves old data from PostgreSQL to Iceberg and marks rows as replicated.
-
-**Phase 3: Eventually migrate entirely (optional)**
-
-```sql
--- Once all data is in Iceberg and PostgreSQL is ready to decommission
-CREATE OR REPLACE VIEW myapp.data.logs SECURITY INVOKER AS
-SELECT log_id, event_type, event_time, user_id
-FROM iceberg.myapp.logs;
-```
-
-**What we're NOT covering**: How replication works, Iceberg table maintenance, partition strategies, compaction. This manifesto focuses on the view architecture that enables migration.
-
-**Benefits**:
-- Zero application downtime during migration
-- No "big bang" rewrite risk
-- Test Iceberg integration incrementally
-- Rollback is trivial (replace view definition)
-- Works with monoliths and microservices
-
-```mermaid
-gantt
-    title Iceberg Migration Timeline
-    dateFormat YYYY-MM-DD
-    section Application Code
-    SELECT * FROM myapp.data.logs :2024-01-01, 2024-12-31
-    section View Implementation
-    PostgreSQL Only       :a1, 2024-01-01, 90d
-    PG + Iceberg Hybrid   :a2, 2024-04-01, 120d
-    Iceberg Only          :a3, 2024-08-01, 2024-12-31
 ```
 
 ---
@@ -1979,5 +1964,5 @@ To the extent possible under law, the author has waived all copyright and relate
 
 ---
 
-**Version**: 0.66
+**Version**: 0.67
 **Last Updated**: 2026-01-02

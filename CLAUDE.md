@@ -16,7 +16,7 @@ This is a technical manifesto about virtual view hierarchies in SQL databases, w
 
 ## 📝 Current Status
 
-**Version**: 0.66 (Draft)
+**Version**: 0.67 (Draft)
 **Last Updated**: 2026-01-02
 **Status**: Work in progress, refactored into modular section files
 **Next Milestone**: 1.0 release after incorporating feedback
@@ -279,5 +279,5 @@ Both are Apache 2 licensed, created by Rob.
 
 ---
 
-**Last Updated**: 2025-12-21
+**Last Updated**: 2026-01-02
 **Maintained By**: Claude Code (for Rob's review and approval)

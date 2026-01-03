@@ -1,5 +1,18 @@
 # Change Log
 
+## Version 0.67 (2026-01-02)
+- **Reordered use cases 3-7** for stronger narrative arc and pedagogical flow
+- Runtime Configuration Switching moved from UC5 to UC3
+- Modular Storage for Features and Agents remains UC4 (unchanged)
+- Zero-Downtime Schema Evolution moved from UC3 to UC5
+- Extending Applications to Iceberg moved from UC7 to UC6
+- Enforcing Privacy and Compliance moved from UC6 to UC7 (title changed from "Ensuring" to "Enforcing")
+- Updated UC5 opening to frame schema evolution as emergent property of UC3 + UC4
+- Narrative now flows: static foundations (UC1-2) → runtime swapping (UC3) → team isolation (UC4) → evolution sequence (UC5-6 schema/storage migrations) → governance (UC7 privacy)
+- Strengthens argument for virtual views vs microservices by showing divide-and-conquer approach
+- Places Iceberg (core Trino capability) before privacy (edge capability) for better excitement gradient
+- Title change to "Enforcing" acknowledges Trino provides enforcement mechanism, not complete privacy/compliance solution
+
 ## Version 0.66 (2026-01-02)
 - Edits to principles, expand copy and improve examples
 - Swapped order of principles 2 and 3

@@ -21,11 +21,10 @@
 
 ## Use Cases
 
-* use case 1: (realistic example) uses select...sum(), count() without aggregation?, also timeline visualization might not be that helpful, mention avoiding premature optimization of physical schema
 * use case 2: since viewzoo just stores views in json format, it's actually easy to write these by hand, or generate them programatically
-* use case 3: should not recommend bottom-up replacement, this actually breaks the hierarchy (and should be covered as a pitfall) but instead create a bottom-up copy of the hierarchy with the needed changes and then flip the application's entry point (and then remove any old views very carefully), should also show gradual connector case (incrementally replacing MySQL with PostgreSQL)
-* use case 3: best practices for splitting or merging layers
-* use case 7: show iceberg types used in base table (not shown elsewhere, examples are using 'myapp.data.logs' instead of 'myapp.logs.all', "zero application changes" should be "zero changes to existing application code", remove phase 3 (this case covered by updated use-case 3), gantt chart isn't a big help
+* use case 5: should not recommend bottom-up replacement, this actually breaks the hierarchy (and should be covered as a pitfall) but instead create a bottom-up copy of the hierarchy with the needed changes and then flip the application's entry point (and then remove any old views very carefully), should also show gradual connector case (incrementally replacing MySQL with PostgreSQL)
+* use case 5: best practices for splitting or merging layers
+* use case 6: show iceberg types used in base table (not shown elsewhere, examples are using 'myapp.data.logs' instead of 'myapp.logs.all', "zero application changes" should be "zero changes to existing application code", remove phase 3 (this case covered by updated use-case 3), gantt chart isn't a big help
 * use case 8: is missing examples
 
 ## Implementation
