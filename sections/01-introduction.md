@@ -98,8 +98,8 @@ Virtual views are always:
 
 ```mermaid
 flowchart TD
-    App["Application<br/>(myapp)"] --> AppCatalog["Application Catalog<br/>(myapp.[feature].*)"]
-    AppCatalog --> Views["Application View<br/>Hierarchy"]
+    App["Application<br/>(myapp)"] --> AppCatalog["Application Catalog<br/>(myapp.properties)"]
+    AppCatalog --> Views["Application View<br/>Hierarchy<br/>(myapp.[feature].*)"]
     Views -.-> PG[("PostgreSQL<br/>(warm storage)")]
     Views -.-> Ice[("Iceberg<br/>(cold storage)")]
     Views -.-> Demo[("Predefined<br/>Demo Datasets")]

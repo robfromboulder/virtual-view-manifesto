@@ -117,8 +117,8 @@ FROM postgresql.myapp.orders;
 
 ```mermaid
 flowchart TD
-    App["Application"] --> Catalog["Application Catalog<br/>(myapp.[feature].*)"]
-    Catalog --> Views["Application View<br/>Hierarchy"]
+    App["Application"] --> Catalog["Application Catalog<br/>(myapp.properties)"]
+    Catalog --> Views["Application View<br/>Hierarchy<br/>(myapp.[feature].*)"]
     Views --> DB[("Physical Tables")]
     App --> Legacy["Legacy Code<br/>(unmodified)"]
     Legacy --> DB
