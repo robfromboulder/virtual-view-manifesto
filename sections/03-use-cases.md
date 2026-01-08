@@ -554,7 +554,7 @@ DROP VIEW myapp.users_v1.base;
 - Maintain backward compatibility during transitions
 
 > [!TIP]
-> Using explicit column lists in view definitions (rather than `SELECT *`) makes contracts clearer and gives you precise control over what each layer exposes during schema evolution. This is especially important when managing multi-version hierarchies where you need to control exactly which columns are present in each version.
+> Using explicit column lists in view definitions (rather than `SELECT *`) makes contracts clearer and gives you precise control over what each layer exposes during schema evolution. This is especially important for multi-version hierarchies to control exactly what columns are present in each version.
 
 > [!CAUTION]
 > The easiest way to break an existing view hierarchy is by accidentally changing column types. Using `CAST` to specify column types is a good habit.
