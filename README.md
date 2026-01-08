@@ -1753,7 +1753,7 @@ ORDER BY event_count DESC;
 
 ## License
 
-**Copyright**: © 2025 by Rob Dickinson (robfromboulder)
+**Copyright**: © 2026 by Rob Dickinson (robfromboulder)
 
 This work is dedicated to the public domain via [CC0 1.0 Universal (CC0 1.0)](https://creativecommons.org/publicdomain/zero/1.0/).
 
