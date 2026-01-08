@@ -8,9 +8,8 @@
 3. [Live Schema Reconfiguration](#use-case-3-live-schema-reconfiguration)
 4. [Modular Storage for Features and Agents](#use-case-4-modular-storage-for-features-and-agents)
 5. [Zero-Downtime Schema Evolution](#use-case-5-zero-downtime-schema-evolution)
-6. [Extending Applications to Iceberg](#use-case-6-extending-applications-to-iceberg)
-7. [Privacy Filtering and Compliance](#use-case-7-privacy-filtering-and-compliance)
-8. [Cost and Availability Routing](#use-case-8-cost-and-availability-routing)
+6. [Privacy Filtering and Compliance](#use-case-6-privacy-filtering-and-compliance)
+7. [Extending Applications to Iceberg](#use-case-7-extending-applications-to-iceberg)
 
 ---
 
@@ -562,72 +561,7 @@ DROP VIEW myapp.users_v1.base;
 
 ---
 
-### Use Case 6: Extending Applications to Iceberg
-
-**The Challenge**: Existing application runs on PostgreSQL (or MySQL, Redis, whatever). Want to optionally add Iceberg for cost-effective long-term storage, but can't require significant rewrites to application code. Need seamless storage integration whether or not Iceberg storage is enabled, without downtime or dual codebases, and without teaching customers how to change their queries based on the storage engines used.
-
-**The Solution**: Replace physical table references with virtual views pointing to legacy storage, then optionally add Iceberg using `UNION ALL` for historical data, and finish by implementing a replication agent (usually time based) to move old records into Iceberg when enabled. Iceberg support can be gated with a licensing check or feature flag, so that evaluation or small-scale users get PostgreSQL behind the scenes by default, but large enterprise customers can use Iceberg storage at scale (without having to install a different product version). 
-
-**Phase 1: Establish the abstraction**
-
-Before:
-```sql
--- Application queries physical table directly
-SELECT * FROM postgresql.myapp.logs WHERE event_time > ?
-```
-
-After:
-```sql
--- Create virtual view as intermediary
-CREATE OR REPLACE VIEW myapp.data.logs SECURITY INVOKER AS
-SELECT
-  CAST(id AS BIGINT) as log_id,
-  CAST(event AS VARCHAR) as event_type,
-  CAST(timestamp AS TIMESTAMP(3)) as event_time,
-  CAST(user_id AS BIGINT) as user_id
-FROM postgresql.myapp.logs;
-
--- Application code changes once (connection string only)
--- Now queries: SELECT * FROM myapp.data.logs WHERE event_time > ?
-```
-
-**Phase 2: Test the abstraction**
-
-* All integration tests should pass at this point
-* Performance should not be measurably different than before
-* It's a good time to add automated tests for any missing data edge cases
-* Might include this in a minor release ahead of the Iceberg cycle
-
-**Phase 3: Support Iceberg in hybrid mode**
-
-Use PostgreSQL by default, but swap in Iceberg hybrid when feature flag is enabled:
-```sql
--- Union PostgreSQL (hot, recent data) with Iceberg (cold, historical)
-CREATE OR REPLACE VIEW myapp.data.logs SECURITY INVOKER AS
--- Recent data still in PostgreSQL
-SELECT log_id, event_type, event_time, user_id
-FROM postgresql.myapp.logs
-WHERE event_time > CURRENT_DATE - INTERVAL '30' DAYS
-  AND replicated = false
-UNION ALL
--- Historical data in Iceberg
-SELECT log_id, event_type, event_time, user_id
-FROM iceberg.myapp.logs
-WHERE event_time <= CURRENT_DATE - INTERVAL '30' DAYS;
-```
-
-**Benefits**:
-- Optionally enable Iceberg with zero application downtime
-- Avoid "big bang" rewrite risk by adopting Iceberg in phases
-- Roll out Iceberg integration incrementally, first as beta feature
-- If Iceberg storage goes down, roll back to PostgreSQL alone by replacing view definition
-
-> [!CAUTION]
-> This manifesto doesn't attempt to cover how replication should work, Iceberg table maintenance, partition strategies, compaction, or any of those details related to Iceberg databases. Virtual views provide the **mechanism** to hide replication details away from consumers, but actually implementing the replication agent (including failure recovery) is not trivial, and is beyond the scope of this document. 
-
----
-
-### Use Case 7: Privacy Filtering and Compliance
+### Use Case 6: Privacy Filtering and Compliance
 
 **The Challenge**: Implement tenant isolation, right-to-be-forgotten filtering, and PII redaction without having to repeat these restrictions in every query.
 
@@ -780,14 +714,65 @@ flowchart TD
 
 ---
 
-### Use Case 8: Cost and Availability Routing
+### Use Case 7: Extending Applications to Iceberg
 
-**The Challenge**: Database dependencies are typically hardcoded, making it difficult to handle peak loads, service outages, or cost optimization without modifying and redeploying the application.
+**The Challenge**: Existing application runs on PostgreSQL (or MySQL, Redis, whatever). Want to optionally add Iceberg for cost-effective long-term storage, but can't require significant rewrites to application code. Need seamless storage integration whether or not Iceberg storage is enabled, without downtime or dual codebases, and without teaching customers how to change their queries based on the storage engines used.
 
-**The Solution**: Periodically update materalized views as backups for key data sources. Reconfigure views at runtime to dynamically route between closest/fastest live sources, cached layers, and static fallback datasets based on availability and load conditions, providing resilience and cost control without code changes.
+**The Solution**: Replace physical table references with virtual views pointing to legacy storage, then optionally add Iceberg using `UNION ALL` for historical data, and finish by implementing a replication agent (usually time based) to move old records into Iceberg when enabled. Iceberg support can be gated with a licensing check or feature flag, so that evaluation or small-scale users get PostgreSQL behind the scenes by default, but large enterprise customers can use Iceberg storage at scale (without having to install a different product version). 
 
-**Simple example**:
-(Fallback from live payment gateway to static "service unavailable" dataset)
+**Phase 1: Establish the abstraction**
 
-**Realistic example**:
-(Multi-tier routing with Redis cache → PostgreSQL → S3 cold storage based on query patterns and service health)
+Before:
+```sql
+-- Application queries physical table directly
+SELECT * FROM postgresql.myapp.logs WHERE event_time > ?
+```
+
+After:
+```sql
+-- Create virtual view as intermediary
+CREATE OR REPLACE VIEW myapp.data.logs SECURITY INVOKER AS
+SELECT
+  CAST(id AS BIGINT) as log_id,
+  CAST(event AS VARCHAR) as event_type,
+  CAST(timestamp AS TIMESTAMP(3)) as event_time,
+  CAST(user_id AS BIGINT) as user_id
+FROM postgresql.myapp.logs;
+
+-- Application code changes once (connection string only)
+-- Now queries: SELECT * FROM myapp.data.logs WHERE event_time > ?
+```
+
+**Phase 2: Test the abstraction**
+
+* All integration tests should pass at this point
+* Performance should not be measurably different than before
+* It's a good time to add automated tests for any missing data edge cases
+* Might include this in a minor release ahead of the Iceberg cycle
+
+**Phase 3: Support Iceberg in hybrid mode**
+
+Use PostgreSQL by default, but swap in Iceberg hybrid when feature flag is enabled:
+```sql
+-- Union PostgreSQL (hot, recent data) with Iceberg (cold, historical)
+CREATE OR REPLACE VIEW myapp.data.logs SECURITY INVOKER AS
+-- Recent data still in PostgreSQL
+SELECT log_id, event_type, event_time, user_id
+FROM postgresql.myapp.logs
+WHERE event_time > CURRENT_DATE - INTERVAL '30' DAYS
+  AND replicated = false
+UNION ALL
+-- Historical data in Iceberg
+SELECT log_id, event_type, event_time, user_id
+FROM iceberg.myapp.logs
+WHERE event_time <= CURRENT_DATE - INTERVAL '30' DAYS;
+```
+
+**Benefits**:
+- Optionally enable Iceberg with zero application downtime
+- Avoid "big bang" rewrite risk by adopting Iceberg in phases
+- Roll out Iceberg integration incrementally, first as beta feature
+- If Iceberg storage goes down, roll back to PostgreSQL alone by replacing view definition
+
+> [!CAUTION]
+> This manifesto doesn't attempt to cover how replication should work, Iceberg table maintenance, partition strategies, compaction, or any of those details related to Iceberg databases. Virtual views provide the **mechanism** to hide replication details away from consumers, but actually implementing the replication agent (including failure recovery) is not trivial, and is beyond the scope of this document. 
