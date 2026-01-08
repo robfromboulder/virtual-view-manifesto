@@ -14,7 +14,6 @@ SECTION_FILES=(
     "01-introduction.md"
     "02-principles.md"
     "03-use-cases.md"
-    "04-implementation.md"
     "05-pitfalls.md"
     "06-anti-patterns.md"
     "07-tools.md"
