@@ -581,9 +581,6 @@ LEFT JOIN postgresql.myapp.gdpr_deletion_requests d
 WHERE d.user_id IS NULL;
 ```
 
-> [!NOTE]
-> The following examples use Trino's built-in `current_user` function combined with user-to-tenant mapping tables.
-
 **Realistic example (PII redaction within a hierarchy)**:
 ```sql
 -- User roles mapping (managed by security team)
