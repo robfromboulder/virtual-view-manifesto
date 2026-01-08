@@ -2,6 +2,9 @@
 
 ## General and Thesis
 
+* is using `*` to select all columns considered harmful or neutral with this pattern? (should we recommend selecting columns as a principle?)
+* check that CAST is used appropriately in all examples
+* add diagram that shows wiring of ORM app vs microservice vs app with virtual view
 * call out cross-connector/multi-connector cases more?
 * don't use `####` in the final version, too close to `**blah**`
 * manifesto should expand on how agents need more dynamic datasets than traditional apps
@@ -21,19 +24,20 @@
 
 ## Use Cases
 
-* use case 2: since viewzoo just stores views in json format, it's actually easy to write these by hand, or generate them programatically
-* use case 5: should not recommend bottom-up replacement, this actually breaks the hierarchy (and should be covered as a pitfall) but instead create a bottom-up copy of the hierarchy with the needed changes and then flip the application's entry point (and then remove any old views very carefully), should also show gradual connector case (incrementally replacing MySQL with PostgreSQL)
-* use case 5: best practices for splitting or merging layers
-* use case 6: show iceberg types used in base table (not shown elsewhere, examples are using 'myapp.data.logs' instead of 'myapp.logs.all', "zero application changes" should be "zero changes to existing application code", remove phase 3 (this case covered by updated use-case 3), gantt chart isn't a big help
-* use case 8: is missing examples
+* use case 7: show iceberg types used in base table (not shown elsewhere, examples are using 'myapp.data.logs' instead of 'myapp.logs.all', "zero application changes" should be "zero changes to existing application code", remove phase 3 (this case covered by updated use-case 3), gantt chart isn't a big help
+* use case 8?
+  * **The Challenge**: Database dependencies are typically hardcoded, making it difficult to handle peak loads, service outages, or cost optimization without modifying and redeploying the application.
+  * **The Challenge**: Database dependencies are typically hardcoded, making it difficult to handle peak loads, service outages, or cost optimization without modifying and redeploying the application.
 
 ## Implementation
 
+* taken out of build for now
 * in complete example. switch 'ecommerce.api.orders' to 'ecommerce.orders.api', expand note on swapping hierarchy vs replacing existing views
 * break out instructions for brand-new applications vs upgrading existing applications
 * add notes on long-term maintenance (backing up definitions, detecting and removing orphans by renaming first)
 * show environment switching in phase 3 of complete example?
 * add note on how to check overhead of virtualization?
+* poor man evolution with views created as chicken bits
 
 ## Pitfalls
 

@@ -19,7 +19,6 @@ This manifesto isn't just theory, it provides practical strategies and examples 
 - [Introduction: Views as Architecture, Not Decoration](#introduction-views-as-architecture-not-decoration)
 - [Principles of Virtual View Hierarchies](#principles-of-virtual-view-hierarchies)
 - [Use Cases: When Virtual Views Shine](#use-cases-when-virtual-views-shine)
-- [Implementation Guide](#implementation-guide)
 - [Common Pitfalls and Solutions](#common-pitfalls-and-solutions)
 - [When NOT to Use Virtual Views](#when-not-to-use-virtual-views)
 - [Related Tools](#related-tools)
