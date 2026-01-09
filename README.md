@@ -81,6 +81,8 @@ GROUP BY date_trunc('day', order_date);
 
 With these classical use cases, views are just icing on your physical schema to make queries a little easier. Applications mostly use physical tables, except when views are needed for security or convenience.
 
+---
+
 ### The Cost of Tight Coupling to Physical Schemas
 
 When applications query physical schemas directly, tight coupling creates friction:
@@ -101,6 +103,8 @@ SELECT * FROM postgresql.myapp.customers WHERE active = true
 UNION ALL
 SELECT * FROM iceberg.myapp.customers WHERE active = false;
 ```
+
+---
 
 ### The Virtual View Approach
 
@@ -123,6 +127,8 @@ flowchart TD
     Views -.-> Test[("Integration<br/>Test Datasets")]
     Views -.-> Future[("Future<br/>Connectors")]
 ```
+
+---
 
 ### Why Not Just Use ORMs or Microservices?
 
