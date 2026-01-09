@@ -53,6 +53,8 @@ SELECT
 FROM mysql.myapp.users;
 ```
 
+---
+
 ### Pitfall 2: Forgetting to Update Dependent Layers
 
 **Problem**: Replace base view, forget middle layers exist, they break.
@@ -91,6 +93,8 @@ FROM postgresql.myapp.users;
 
 **Solution**: Use ViewMapper to identify all dependents before making changes. Update layers bottom-up. Try migrations in a development or staging environment prior to running in production.
 
+---
+
 ### Pitfall 3: Breaking Application Assumptions
 
 **Problem**: View replacement changes behavior in ways application doesn't expect.
@@ -114,6 +118,8 @@ SELECT * FROM iceberg.myapp.events;  -- No ORDER BY!
 - If changing behavior, update application code first
 - Add ORDER BY in view if application depends on it (and verify performance)
 - Consider sorting data in application code rather than views
+
+---
 
 ### Pitfall 4: Permission Confusion
 
@@ -140,6 +146,8 @@ COMMENT ON VIEW myapp.users.all IS
 'Requires SELECT permission on postgresql.myapp.users table';
 ```
 
+---
+
 ### Pitfall 5: Attempting to Delete Base Views
 
 **Problem**: Attempting to drop a base view before its dependents.
@@ -156,6 +164,8 @@ DROP VIEW myapp.events.filtered;
 ```
 
 **Solution**: Use ViewMapper to identify all dependents before dropping views.
+
+---
 
 ### Pitfall 6: Lost View Definitions
 
@@ -175,6 +185,8 @@ SELECT * FROM postgresql.myapp.users;
 - Store views in a system that is regularly backed up
 - Alternatively export view definitions to version control
 - Use `SHOW CREATE VIEW` to inspect definitions
+
+---
 
 ### Pitfall 7: Circular Dependencies
 
