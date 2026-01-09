@@ -3,9 +3,9 @@
 
 Classical SQL views are boring schema decoration for hiding joins, adding computed columns, and enforcing permissions. **Virtual views** are different. They're architectural components that decouple applications and agents from physical storage, enable prototyping and testing with static data, allow seamless migration to Iceberg, and support zero-downtime schema evolution. Virtual views are layered into **hierarchies**, where any layer in the hierarchy can be replaced (even at runtime) without disrupting other layers or active queries.
 
-For SQL-native applications and data platforms, virtual views provide an alternative to ORMs and microservices for decoupling applications and agents from physical storage, operating at the database layer rather than in application code. 
+For SQL-native applications and data platforms, virtual views provide an alternative to ORMs and microservices for decoupling applications and agents from physical storage. Virtual views operate at the query engine layer rather than in application code, and require no extra network calls. 
 
-Virtual view hierarchies can be implemented using Trino, Starburst Enterprise or Galaxy, Amazon Athena, Presto, and most databases that support SQL views (including PostgreSQL and MySQL). Trino is used for all examples here.
+Virtual views can be implemented using Trino, Starburst Enterprise or Galaxy, Amazon Athena, Presto, and most databases that support SQL views (including PostgreSQL and MySQL). Trino is used for all examples here.
 
 This manifesto isn't just theory, it provides practical strategies and examples to follow when introducing virtual views into your architecture, and links to free tools to discover and manage view hierarchies with Trino.
 

@@ -107,10 +107,12 @@ FROM postgresql.myapp.orders;
 CREATE OR REPLACE VIEW myapp.users.merged SECURITY INVOKER AS ...
 
 -- Owned by privacy system, updated when policies change
-CREATE OR REPLACE VIEW myapp.users.filtered SECURITY INVOKER AS SELECT ... FROM myapp.users.merged
+CREATE OR REPLACE VIEW myapp.users.filtered SECURITY INVOKER AS
+SELECT ... FROM myapp.users.merged
 
 -- Owned by dev team, updated during releases
-CREATE OR REPLACE VIEW myapp.users.all SECURITY INVOKER AS SELECT ... FROM myapp.users.filtered;
+CREATE OR REPLACE VIEW myapp.users.all SECURITY INVOKER AS
+SELECT ... FROM myapp.users.filtered;
 
 -- Applications use entry point when querying
 SELECT ... FROM myapp.users.all ...
