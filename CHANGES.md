@@ -1,5 +1,13 @@
 # Change Log
 
+## Version 0.69 (2026-01-08)
+- Added architectural diagram comparing virtual views vs microservices abstraction layers
+- Reframed "Why Not Just Use ORMs or Microservices?" with clearer use-case guidance
+- Expanded principle 2 with advanced example showing layer replacement in action
+- Added principle 2 caution callouts about ANSI/ISO SQL standardization and platform variance
+- Removed "what's novel" and "what's controversial" from introduction
+- Fixed broken links in principles contents
+
 ## Version 0.68 (2026-01-07)
 - Revised and expanded use cases
 - Tweaked use case order again 🤞

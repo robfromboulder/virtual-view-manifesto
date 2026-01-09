@@ -4,7 +4,6 @@
 
 * is using `*` to select all columns considered harmful or neutral with this pattern? (should we recommend selecting columns as a principle?)
 * check that CAST is used appropriately in all examples
-* add diagram that shows wiring of ORM app vs microservice vs app with virtual view
 * call out cross-connector/multi-connector cases more?
 * don't use `####` in the final version, too close to `**blah**`
 * manifesto should expand on how agents need more dynamic datasets than traditional apps

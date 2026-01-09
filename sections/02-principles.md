@@ -4,8 +4,8 @@
 ## Principles of Virtual View Hierarchies
 
 1. [Virtual Views Belong to Applications, Not Physical Schemas](#principle-1-virtual-views-belong-to-applications-not-physical-schemas)
-2. [Every Virtual View Has Multiple Versions](#principle-3-every-virtual-view-has-multiple-versions)
-3. [Applications Query Virtual Views (Usually)](#principle-2-applications-query-virtual-views-usually)
+2. [Every Virtual View Has Multiple Versions](#principle-2-every-virtual-view-has-multiple-versions)
+3. [Applications Query Virtual Views (Usually)](#principle-3-applications-query-virtual-views-usually)
 4. [Assign One Owner Per Virtual View](#principle-4-assign-one-owner-per-virtual-view)
 5. [Never Change Column Types](#principle-5-never-change-column-types)
 6. [Use Invoker Permissions](#principle-6-use-invoker-permissions)
@@ -101,11 +101,37 @@ SELECT
 FROM postgresql.myapp.orders;
 ```
 
+**Advanced example (swappable view layers in a hierarchy)**:
+```sql
+-- Owned by data engineering, updated during migrations
+CREATE OR REPLACE VIEW myapp.users.merged SECURITY INVOKER AS ...
+
+-- Owned by privacy system, updated when policies change
+CREATE OR REPLACE VIEW myapp.users.filtered SECURITY INVOKER AS SELECT ... FROM myapp.users.merged
+
+-- Owned by dev team, updated during releases
+CREATE OR REPLACE VIEW myapp.users.all SECURITY INVOKER AS SELECT ... FROM myapp.users.filtered;
+
+-- Applications use entry point when querying
+SELECT ... FROM myapp.users.all ...
+
+-- Now replace merge layer with a new version, without changing any other layers 🤩
+-- Doesn't disrupt application entry point, no queries canceled or restarted here
+CREATE OR REPLACE VIEW myapp.users.merged SECURITY INVOKER AS (new data sources)
+```
+
 **Implementation**:
 - Start new projects and feature prototypes with static data views
 - Keep test views in version control alongside production definitions
-- Document expected version progression paths from development to production
-- Use environment-specific catalogs if needed (`myapp_dev`, `myapp_prod`)
+- Think through the progression from staging to production to possible future data providers
+- Use views as designated entry points for application queries
+- Add swappable layers for specific features or use-cases as they arise
+
+> [!CAUTION]
+> The core idea of being able to replace layers in a virtual view hierarchy, without having to rebuild the entire hierarchy, is not standardized in ANSI/ISO SQL. Runtime behaviors when replacing views do vary between database systems. Existing standards generally assume that view definitions are frozen at creation time and only updated during migrations (when applications are offline).
+
+> [!CAUTION]
+> This manifesto admittedly relies on multi-database platforms like Trino as the "practical standard" for how view replacement at runtime should behave. Even the most restrictive platforms (like Postgresql) generally allow views to be replaced if the column types do not change. But error handling and type checking varies by platform, so take care to validate these details when implementing virtual view hierarchies.
 
 ---
 

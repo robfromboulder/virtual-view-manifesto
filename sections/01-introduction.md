@@ -77,14 +77,6 @@ UNION ALL
 SELECT * FROM iceberg.myapp.customers WHERE active = false;
 ```
 
-### Why Not Just Use Microservices or ORMs?
-
-Decoupling through microservices or ORMs absolutely works. If every database query in your organization flows through application code (ORMs, microservices with ORM-backed models, custom data access APIs), then virtual views may not provide additional benefit at this point.
-
-But microservices introduce network hops, serialization overhead, and deployment complexity. ORMs add their own abstractions and performance characteristics. For applications using SQL as their native query language, virtual views provide virtualization at the **query engine layer**, with negligible impact to query performance and without additional network calls or serialization.
-
-As architectural patterns, virtual views and microservices aren't mutually exclusive. Microservices that query SQL directly (without ORMs) can benefit from virtual views that are defined using standard SQL. This provides decoupling at both the service boundary and the data access layer, and simpler than introducing an ORM.
-
 ### The Virtual View Approach
 
 Unlike physical tables and traditional views, virtual views are organized by application or feature, designed to be replaced with different implementations while maintaining the same interface. Virtual views decouple applications from physical storage, through layers of views that can evolve independently, even dynamically at runtime.
@@ -107,19 +99,58 @@ flowchart TD
     Views -.-> Future[("Future<br/>Connectors")]
 ```
 
-### What's Novel Here
+### Why Not Just Use ORMs or Microservices?
 
-This manifesto synthesizes several existing ideas:
-1. **View hierarchies**: Not new, but rarely used systematically
-2. **Application-centric organization**: Adapts DDD patterns to data layer
-3. **Swappable data providers**: Switch between dev, test, staging, and production environments
-4. **Multi-database abstraction**: Use federation capabilities in Trino/Starburst/Athena/Presto
-5. **Iceberg migration focus**: Specific, pragmatic, and common use case for adoption
+Decoupling through ORMs or microservices absolutely works. If every database query flows through application code, then virtual views may not add value.
 
-The novelty is the **combination and systematic approach** and documentation as a **repeatable pattern**, not individual techniques. Like the [AJAX pattern](https://en.wikipedia.org/wiki/Ajax_(programming)) for web applications, which used capabilities already available in modern browsers, the capabilities for virtual views are already present in most modern database platforms, without requiring any configuration changes or custom extensions.
+**When ORMs/Microservices are sufficient:**
+- All data access goes through application code
+- Query patterns are simple CRUD operations
+- Single database, no federation needed
+- Team prefers application-layer abstraction
 
-### What's Controversial Here
+**When virtual views complement or replace them:**
+- SQL is your native query language (analytics, BI tools, SQL-heavy apps)
+- Need to federate across multiple databases
+- Want environment switching without code deployment
+- Need independent evolution of data and application layers
 
-The core idea of being able to replace layers in a virtual view hierarchy, without having to rebuild the entire hierarchy, is not standardized in ANSI/ISO SQL. Runtime behaviors when replacing views do vary between database systems. Existing standards generally assume that view definitions are frozen at creation time and only updated during migrations (when applications are offline).
+Virtual views operate at the query engine layer. For SQL-native applications, this provides abstraction without serialization overhead, or compounding network hops between microservices.
 
-This manifesto admittedly relies on multi-database platforms like Trino as the "practical standard" for how view replacement at runtime should behave. Even the most restrictive platforms (like Postgresql) generally allow views to be replaced if the column types do not change. But error handling and type checking varies by platform, so take care to validate these details when implementing virtual view hierarchies.
+```mermaid
+  flowchart LR
+      subgraph views[" "]
+          direction LR
+          VApp["Application"] ==>|SQL| VEng
+          subgraph vengine["Federated Query Engine"]
+              VEng["<b>Query Engine</b><br/>(Abstraction Layer)"]
+              VView["Virtual View<br/>Hierarchy"]
+              VEng --> VView
+          end
+          VView ==>|network| VDB[("Databases")]
+      end
+
+      subgraph micro[" "]
+          direction LR
+          MApp["Application"] ==>|API call| MAPI
+          subgraph msvc["Microservice"]
+              MAPI["<b>REST or GraphQL API</b><br/>(Abstraction Layer)"]
+              MSvc["Service<br/>Code"]
+              MAPI --> MSvc
+          end
+          MSvc ==>|SQL| MDB[("Databases")]
+      end
+
+      subgraph orm[" "]
+          direction LR
+          subgraph appproc["Application"]
+              OApp["Application<br/>Code"]
+              OORM["<b>ORM</b><br/>(Abstraction Layer)"]
+              OApp --> OORM
+          end
+          OORM ==>|SQL| ODB[("Databases")]
+      end
+```
+
+> [!TIP]
+> As architectural patterns, virtual views and microservices aren't mutually exclusive. Microservices that query SQL databases directly (without ORMs) can benefit from virtual views just as much as larger applications. Building microservices on top of virtual views provides decoupling at both the service boundary and the data access layer, and is simpler than introducing an ORM.
