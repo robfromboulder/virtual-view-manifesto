@@ -56,6 +56,31 @@ The manifesto is successful if readers:
 
 **Always validate Mermaid diagrams** when making changes to ensure they render correctly.
 
+### Requesting Critical Reviews
+
+When the user asks for a "harsh review" or "critical review" of a section:
+
+**Adopt the skeptical reader persona:**
+- Someone who thinks existing solutions (ORMs, microservices, DALs) already solve these problems
+- Looking for reasons to dismiss the pattern rather than adopt it
+- Will spot logical inconsistencies, unfounded claims, and defensive posturing
+- Expects honest trade-offs, not one-sided comparisons
+
+**Check for these specific issues:**
+1. **Sequencing problems** - Are concepts explained before they're referenced? Does the order create confusion?
+2. **Unaddressed counterarguments** - What would a skeptic object to? Are those objections acknowledged and addressed?
+3. **Unfounded claims** - Any assertions about performance, simplicity, or superiority without evidence or caveats?
+4. **Missing context** - What knowledge gaps would prevent a reader from following the argument?
+5. **Defensive posturing** - Is the text apologizing for or justifying the pattern rather than confidently explaining it?
+
+**Provide specific feedback:**
+- Quote the problematic text
+- Explain the skeptic's likely response
+- Identify what's missing or misleading
+- Suggest specific fixes when obvious
+
+This type of review should be constructive but unsparing. The goal is to strengthen the argument, not soften the criticism.
+
 ---
 
 ## 📐 Document Structure
@@ -279,5 +304,5 @@ Both are Apache 2 licensed, created by Rob.
 
 ---
 
-**Last Updated**: 2026-01-02
+**Last Updated**: 2026-01-08
 **Maintained By**: Claude Code (for Rob's review and approval)
