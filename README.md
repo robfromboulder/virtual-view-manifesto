@@ -12,6 +12,9 @@ This manifesto isn't just theory, it provides practical strategies and examples 
 > [!CAUTION]
 > This is a work in progress and is neither complete nor peer reviewed.
 
+> [!NOTE]
+> This project is not officially endorsed or supported by Starburst.
+
 ---
 
 ## Table of Contents
