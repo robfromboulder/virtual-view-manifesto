@@ -35,12 +35,6 @@ This is a **personal manifesto** advocating for a specific architectural pattern
 
 If you disagree with the core premise (that virtual views are useful), that's fine, but this probably isn't the document for you. If you agree with the premise but see something wrong, **please contribute**.
 
-## Claude Code
-This project uses (but does not require) [Claude Code](https://claude.ai/code) for help with research, fact checking, generating and validating examples, and general upkeep. The goal in doing so is to focus available time on improving the quality of these ideas and their presentation. The size and scope of this document is large enough to benefit from a good thinking partner. The `CLAUDE.md` file provides project context for Claude Code sessions. If you haven't used Claude Code yet, these resources are super helpful:
-* https://code.claude.com/docs
-* https://www.anthropic.com/engineering/claude-code-best-practices
-* https://www.siddharthbharath.com/claude-code-the-complete-guide/
-
 ## Code of Conduct
 Please be respectful. Critique ideas, not people. GitHub is a public forum, so act accordingly.
 
