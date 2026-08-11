@@ -1,5 +1,24 @@
 # Contributing to "The Virtual View Manifesto"
-If you're here, you either found a mistake, have a better way to explain something, or you're sufficiently mad about my opinions on virtual views. All of these are valid reasons to get involved!
+This project uses [Claude Code](https://claude.ai/code) for development and test automation. See `CLAUDE.md` for project-specific instructions.
+
+## What This Project Is
+This is a **personal manifesto** advocating for a specific architectural pattern. It's opinionated by design. I'm not trying to be neutral or cover every possible database system equally. Trino is the reference implementation because it's where I originally developed and refined these ideas, and because it's awesome. 🐰
+
+## What I'm Looking For
+
+### Accuracy
+If I got something wrong about Trino, Iceberg, SQL standards, or database behavior, please tell me. I want this to be technically accurate, not just opinionated.
+
+### Clarity
+If something is confusing, unclear, or poorly explained, I want to know. You don't need to have the fix, just pointing out "this section lost me" is valuable.
+
+### Better Examples
+If you have a more compelling example that explains a point better than mine, open an issue with details!
+
+### Missing Context
+If I made assumptions that aren't obvious, or skipped steps that beginners would need, let me know.
+
+If you disagree with the core premise (that virtual views are useful), that's fine, but this probably isn't the document for you. If you agree with the premise but see something wrong, **please contribute**.
 
 ## How to Contribute
 
@@ -16,27 +35,8 @@ All of these are helpful. Seriously. Even the complaints.
 ### Submit a Pull Request (Ask First?)
 Look, I'll be honest. The odds of me accepting a pull request that significantly revises this manifesto are...honestly low. This is a personal portfolio project and I'm trying to establish a coherent voice and perspective, based on years of using these ideas with Trino and Iceberg. If you have a big idea, **[open an issue](https://github.com/robfromboulder/virtual-view-manifesto/issues)** and let's hash it out.
 
-## What I'm Looking For
-
-### Accuracy
-If I got something wrong about Trino, Iceberg, SQL standards, or database behavior, please tell me. I want this to be technically accurate, not just opinionated.
-
-### Clarity
-If something is confusing, unclear, or poorly explained, I want to know. You don't need to have the fix, just pointing out "this section lost me" is valuable.
-
-### Better Examples
-If you have a more compelling example that explains a point better than mine, open an issue with details!
-
-### Missing Context
-If I made assumptions that aren't obvious, or skipped steps that beginners would need, let me know.
-
-## What This Project Is
-This is a **personal manifesto** advocating for a specific architectural pattern. It's opinionated by design. I'm not trying to be neutral or cover every possible database system equally. Trino is the reference implementation because it's where I originally developed and refined these ideas, and because it's awesome. 🐰
-
-If you disagree with the core premise (that virtual views are useful), that's fine, but this probably isn't the document for you. If you agree with the premise but see something wrong, **please contribute**.
-
-## Code of Conduct
+### Code of Conduct
 Please be respectful. Critique ideas, not people. GitHub is a public forum, so act accordingly.
 
-## License
+### License
 By contributing (issues, PRs, comments), you agree that your contributions can be used under the same CC0 1.0 license as the rest of this project. Basically, you're giving your feedback to the public domain, same as the document itself.

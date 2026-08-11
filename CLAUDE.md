@@ -1,99 +1,30 @@
-# Claude Code Instructions for "The Virtual View Manifesto"
+# Claude Instructions for "The Virtual View Manifesto"
 
-**Project**: The Virtual View Manifesto
-**Author**: Rob Dickinson (robfromboulder)
-**Primary File**: `README.md` (generated from section files)
-**Output Format**: Markdown with Mermaid diagrams for GitHub rendering
-**Related Tools**: ViewMapper and ViewZoo (Apache 2 licensed projects by Rob)
+This is a technical manifesto about virtual view hierarchies in SQL databases, with Trino as the reference implementation. The document's own version and status live in `sections/09-footer.md`.
 
----
+## Entry Points
 
-## 🎯 Project Overview
+**When the user says "mini brain", "mini-brain", or "work item"**, pull `../virtual-view-brain/` to latest (it's a shared repo), then read its `CLAUDE.md` and follow it (sibling clone; if absent, tell the user to clone `robfromboulder/virtual-view-brain` beside this repo). Drive the whole workflow from *this* session, never make the user switch repos, and resolve its instructions' relative paths against `../virtual-view-brain/`. Nothing else loads the brain.
 
-This is a technical manifesto about virtual view hierarchies in SQL databases, with Trino as the reference implementation. The document is published as part of Rob's GitHub portfolio and is intended to establish a repeatable architectural pattern for the data engineering community.
+**This repo is the brain's Manifesto component** (directory `manifesto/`, token `VVM`). Start there and read another component's documents only when the question crosses into it; the brain's registry says which terms route where. The brain holds who this is for, what success looks like, and why the editorial rules below are what they are; this file holds the rules themselves and how to operate the document.
 
----
+## Working in the Mini-Brain
 
-## 📝 Current Status
+Mini-brain edits accumulate uncommitted during a session; **closeout is the sync point that lands them**, so don't commit/push on every file write. The user can't see that tree, so a closeout must actually commit and push, not just write files. A session closeout commits the session's changes (edits, the new log entry) and pushes to the mini-brain's `main`, reporting both; if the push fails, resolve or surface it rather than leaving the change unpushed.
 
-**Version**: 0.69 (Draft)
-**Last Updated**: 2026-01-08
-**Status**: Work in progress, refactored into modular section files
-**Next Milestone**: 1.0 release after incorporating feedback
-**Entire document is open for review**
+**Proactively offer a session closeout at natural stopping points** (a section rewritten, work paused, user signals wrapping up), but only in a session that loaded the brain. Offer once and briefly; run the procedure only after the user agrees; skip trivial sessions (a lone question, a typo).
 
----
+**Never cite mini-brain docs (`VV_*`, `VVM_*`, or any component's token) from the manifesto's own text.** Information flows one way, down from the mini-brain into the document, so a back-reference is circular. Rationale, roadmap and history that isn't about operating this repo belong in the brain, not in section files or this file.
 
-## 👥 Target Audience
+## Document Structure
 
-- **Primary**: Trino users (full-stack engineers, application architects, big-data practitioners)
-- **Secondary**: Everyone else interested in SQL view patterns
-- **Assumptions**: Familiar with SQL views but may not have thought about them architecturally
-- **Needs**: Practical guidance, not academic theory
-- **Appreciation**: Technical detail and concrete examples
-- **Focus**: Keep content optimized for Trino users first
-
----
-
-## 📋 Success Criteria
-
-The manifesto is successful if readers:
-
-1. ✅ Understand virtual views as architectural pattern, not just database or Trino-specific feature
-2. ✅ Can implement basic prototyping → testing → production progression
-3. ✅ Know when to use (and not use) the pattern
-4. ✅ Understand the eight principles and why they matter
-5. ✅ Have links to ViewMapper and ViewZoo for implementation
-
----
-
-## 🤖 Collaboration Preferences
-
-**Priority order for all work**:
-1. **Accuracy and terminology consistency** (paramount)
-2. **Conciseness and logical flow** (next priority)
-3. **Creativity** (only when specifically requested)
-
-**Always validate Mermaid diagrams** when making changes to ensure they render correctly.
-
-### Requesting Critical Reviews
-
-When the user asks for a "harsh review" or "critical review" of a section:
-
-**Adopt the skeptical reader persona:**
-- Someone who thinks existing solutions (ORMs, microservices, DALs) already solve these problems
-- Looking for reasons to dismiss the pattern rather than adopt it
-- Will spot logical inconsistencies, unfounded claims, and defensive posturing
-- Expects honest trade-offs, not one-sided comparisons
-
-**Check for these specific issues:**
-1. **Sequencing problems** - Are concepts explained before they're referenced? Does the order create confusion?
-2. **Unaddressed counterarguments** - What would a skeptic object to? Are those objections acknowledged and addressed?
-3. **Unfounded claims** - Any assertions about performance, simplicity, or superiority without evidence or caveats?
-4. **Missing context** - What knowledge gaps would prevent a reader from following the argument?
-5. **Defensive posturing** - Is the text apologizing for or justifying the pattern rather than confidently explaining it?
-
-**Provide specific feedback:**
-- Quote the problematic text
-- Explain the skeptic's likely response
-- Identify what's missing or misleading
-- Suggest specific fixes when obvious
-
-This type of review should be constructive but unsparing. The goal is to strengthen the argument, not soften the criticism.
-
----
-
-## 📐 Document Structure
-
-The README is generated from section files in `sections/`. When editing:
-
-**IMPORTANT**: Edit files in `sections/`, NOT `README.md` directly. The README is generated by `./build.sh`.
+The README is generated from section files in `sections/`. **Edit files in `sections/`, NOT `README.md` directly.** The README is generated by `./build.sh`.
 
 Section-to-content mapping:
 1. **Header** (`00-header.md`): Title, TOC, what's novel, what's controversial
 2. **Introduction** (`01-introduction.md`): Problem statement, classical vs virtual views
 3. **Principles** (`02-principles.md`): Core architectural principles with examples
-4. **Use Cases** (`03-use-cases.md`): Eight practical scenarios (note: Use Case 8 is stub for future completion)
+4. **Use Cases** (`03-use-cases.md`): Seven practical scenarios
 5. **Implementation Guide** (`04-implementation.md`): Setup, complete e-commerce example, documentation/tooling
 6. **Common Pitfalls** (`05-pitfalls.md`): Seven mistakes and solutions
 7. **When NOT to Use** (`06-anti-patterns.md`): Three anti-patterns
@@ -118,191 +49,146 @@ git add sections/02-principles.md README.md
 git commit -m "Update Principle 5 with new example"
 ```
 
-### Section File Formatting Convention
+### Section File Format
 
-**IMPORTANT**: All section files (except `00-header.md`) follow a consistent format:
+All section files (except `00-header.md`) follow this format:
 
-**File start:**
-```
-<blank line>
----
-<blank line>
-## Section Title
-...content...
-```
+**File start:** blank line, `---`, blank line, `## Section Title`, content. **File end:** content, blank line.
 
-**File end:**
-```
-...content...
-<blank line>
-```
+The leading blank line before `---` is required for IntelliJ IDEA compatibility. `00-header.md` is the exception since it contains the document preamble.
 
-This convention ensures clean separation when files are concatenated and makes the structure easier to maintain. The leading blank line before `---` is required for IntelliJ IDEA compatibility (fixes syntax highlighting and Structure view). The `00-header.md` file is the exception since it contains the document preamble and doesn't need the leading delimiter.
+## Writing & Editing Rules
 
-### Information Flow Best Practices
+**Priority order for all work**: accuracy and terminology consistency first, conciseness and logical flow second, creativity only when specifically requested.
 
-- Place context/setup paragraphs BEFORE examples (not after)
+### Voice
+
+- Third-person objective throughout, no "I" or "we"
+- Plain language, simple sentence construction, casual and practical
+- Humor welcome but must not distract or add complexity; emojis sparingly
+- Never use em dashes (—), use commas instead, extending sentences naturally without colons or dashes as breaks
+
+### Editorial
+
+- Acknowledge existing solutions (microservices, ORMs, DALs) first, then show where virtual views complement rather than compete
+- No empirical claims without evidence ("many applications do X")
+- State limitations honestly; pragmatic over dogmatic; when in doubt, simpler is better
+- Place context/setup paragraphs BEFORE examples, not after
 - Position diagrams early to visualize concepts immediately
 - Remove redundant subsections when content is already covered elsewhere
-- Ensure diagram elements match surrounding text (e.g., if diagram shows demo/test data, mention it)
+- Ensure diagram elements match surrounding text
 - Make example headers consistent ("Example of..." pattern)
-- Use GitHub callout boxes (> [!CAUTION], > [!TIP]) for important warnings and tips
+- Use GitHub callout boxes (`> [!CAUTION]`, `> [!TIP]`) for important warnings and tips
+- A section explains its own subject, not a sibling's (brief transitions at boundaries are fine)
+- A detail that raises a question it doesn't answer is a net loss, prefer omission or a scope disclaimer
+- One job per sentence, don't overload
+- No hard wrapping; one continuous line per paragraph and list item, let editors soft-wrap
+- New content should match the existing casual, practical voice, not encyclopedic or wiki-style framing
 
-### Using SECURITY INVOKER in Examples
+### Use Cases
 
-All CREATE VIEW examples should include `SECURITY INVOKER` using compact single-line format:
-```sql
-CREATE VIEW myapp.users.all SECURITY INVOKER AS
-SELECT ...
-```
+Each use case must demonstrate something you *couldn't easily do* without virtual views. Reject use cases that are just Trino features. Good use cases show: swappable implementations, independent layer evolution, static-to-live progressions, runtime reconfiguration.
 
-**Exceptions** (do NOT add SECURITY INVOKER):
-- Introduction section (classical view examples showing traditional patterns)
-- Principle 6 examples that demonstrate SECURITY DEFINER as counter-example
-- SELECT statements (not applicable to queries)
-- Materialized views (don't support SECURITY INVOKER)
-- Placeholder examples using `CREATE VIEW ... AS ...` where details are omitted
+### Examples
 
----
+Major points get two examples: **simple** (3-10 lines) and **realistic** (20-50 lines showing production complexity), plus an explanation and a Mermaid diagram when helpful.
 
-## ✍️ Writing & Style Guide
+### Critical Reviews
 
-### Voice & Tone
+When the user asks for a "harsh review" or "critical review":
 
-- **Strongly opinionated but not fundamentalist**
-- **Plain language and simple sentence construction**
-- Use Rob's natural speaking voice (casual, practical, not overly formal)
-- "Manifesto" is tongue-in-cheek to attract attention to typically boring database topic
-- **Avoid "I" and "we" language**; use third-person objective
-- Think **Douglas Adams meets database architecture**
-- **Clean and precise as a manifesto** - humor is welcome but shouldn't distract or add complexity
-- **Humor and emojis**: Use sparingly, only when payoff is obvious
+**Check for these issues:**
+1. **Sequencing problems**, concepts used before they're explained
+2. **Unaddressed counterarguments**, what a skeptic would object to
+3. **Unfounded claims**, assertions without evidence or caveats
+4. **Missing context**, knowledge gaps that block the reader
+5. **Defensive posturing**, apologizing for or justifying the pattern instead of explaining it
 
-### Editorial Standards
+**Provide feedback by:** quoting the problematic text, explaining the skeptic's likely response, identifying what's missing or misleading, suggesting specific fixes when obvious. Constructive but unsparing.
 
-- Be honest about limitations
-- Openly recognize constraints and other potential points of view
-- Pragmatic over dogmatic
-- When in doubt: simpler is better
-- **Never use em dashes (—)**: They cause formatting issues with web content and signal AI-generated text to readers. Use commas instead, extending sentences naturally without colons or dashes as breaks
-- **Addressing skeptical readers**: Acknowledge existing solutions (microservices, ORMs, DALs) first, then show where virtual views complement or add value rather than compete or replace. Avoid making empirical claims without evidence ("many applications do X") that skeptics can easily dispute
+## Terminology & Naming
 
-### Preferred Terminology
+### Preferred Terms
 
 | Use                                    | Instead of                 | Reason                                             |
 |----------------------------------------|----------------------------|----------------------------------------------------|
 | Virtual views                          | Logical views              | Emphasizes detachment from physical                |
-| Base view                              | Parent view                | Keep consistent for clarify                        |
+| Base view                              | Parent view                | Keep consistent for clarity                        |
 | Layer                                  | Level                      | Implies responsibility, not just hierarchy         |
 | Swappable                              | Replaceable                | Implies designed for it                            |
 | Application catalog                    | Feature catalog            | Either works, depends on context                   |
 | Federation                             | Data virtualization        | More concrete                                      |
 | Virtualizing at the query engine layer | Database abstraction layer | Clarifies where in the stack virtual views operate |
 
-### Content Standards
+### SQL Naming Convention
 
-**Scope and Emphasis**:
-1. **Scope**: Concepts apply to any database, but Trino is reference implementation due to federation capabilities
-2. **Audience assumptions**: Brief primer on classical views included for contrast
-3. **Dogmatism level**: Strongly opinionated but pragmatic
-4. **Example complexity**: Both simple and realistic for each major point
+All SQL examples must follow the three-level naming convention consistently.
 
-**Use Case Selection Criteria**:
-- **Focus on the virtual view pattern**, not just Trino capabilities
-- Ask: "Does this demonstrate something you *couldn't easily do* without virtual views?"
-- **Avoid use cases that are just Trino features** (e.g., "Cross-Database Federation" showcases Trino's federation but doesn't highlight the swappability/versioning that makes virtual views unique)
-- Good use cases demonstrate: swappable implementations, independent layer evolution, static-to-live progressions, runtime reconfiguration
-- Each use case should show a problem that virtual views solve better than alternatives
+**Physical tables** (connector.schema.table):
+- `postgresql.myapp.users`, `postgresql.myapp.orders`, `iceberg.myapp.events`
+- Not `postgresql.users` (missing schema) or `postgresql.app.users` (wrong schema name)
 
-**Example Structure Pattern**:
-1. **Simple example** (3-10 lines of SQL)
-2. **Realistic example** (20-50 lines showing production complexity)
-3. **Explanation** (why it matters, when to use it)
-4. **Visual** (Mermaid diagram when helpful)
+**Virtual views** (catalog.schema.view):
+- `myapp.users.all`, `myapp.orders.pending`, `myapp.events.base`
+- Not `myapp.users` (missing view name) or `myapp.all_users` (use feature schema)
 
----
+**Schema-to-catalog transformation**: `postgresql.myapp.users` (schema in PostgreSQL) becomes `myapp.users.all` (`myapp` promoted to catalog, `users` is a feature schema). Every example reinforces this pattern.
 
-## 🎨 Formatting Guidelines
+**Common view suffixes**: `.all` (entry point), `.base` (base layer), `.merged` (combining sources), `.filtered` (privacy/filtering), `.enriched` (transformation). Use `myapp.internal.*` for multi-layer hierarchies.
 
-### GitHub Rendering
-- Standard GitHub-flavored Markdown
-- Mermaid diagrams for visualizations
-- Code samples throughout (always use proper language tags)
-- No need to mention installation/configuration details (covered by linked projects)
+### SECURITY INVOKER
+
+All `CREATE VIEW` examples include `SECURITY INVOKER` in compact single-line format:
+```sql
+CREATE VIEW myapp.users.all SECURITY INVOKER AS
+SELECT ...
+```
+
+**Exceptions** (do NOT add SECURITY INVOKER):
+- Introduction section (classical view examples)
+- Principle 6 examples demonstrating SECURITY DEFINER as counter-example
+- SELECT statements, materialized views, placeholder `CREATE VIEW ... AS ...` examples
+
+## Formatting
 
 ### Code Blocks
 - Always specify language: ```sql, ```python, ```bash, etc.
 - Keep examples realistic but concise
-- Include both simple and realistic examples for major points
 - Use comments sparingly (code should be self-evident)
+- Don't mention installation/configuration details (covered by linked projects)
 
 ### Mermaid Diagrams
-- **Test rendering in GitHub preview** - Always validate before committing
-- Use flowcharts for architecture and dependencies (`flowchart TD` by default)
+- Validate rendering in GitHub preview before committing
+- Use `flowchart TD` for architecture and dependencies
 - Use Gantt charts for timeline progressions
-- **Use black-and-white only** - No custom colors or fills for readability in both light and dark modes
-- **Use quotes for labels even when not strictly required** - use `Tables[("Physical Tables")]`, not `Tables[(Physical Tables)]`
+- **Black-and-white only**, no custom colors or fills
+- **Quote all labels**: `Tables[("Physical Tables")]`, not `Tables[(Physical Tables)]`
 
-### Example Naming Conventions
+## Revision Workflow
 
-**CRITICAL**: All SQL examples must follow the three-level naming convention consistently throughout the document.
+### Content Changes
 
-**Physical tables** (connector.schema.table):
-- ✅ `postgresql.myapp.users`, `postgresql.myapp.orders`, `iceberg.myapp.events`
-- ❌ `postgresql.users` (missing schema), `postgresql.app.users` (wrong schema name)
+1. Check prose consistency and flow
+2. Ensure examples are clear and compelling
+3. Verify Mermaid diagrams render correctly (GitHub preview)
+4. Check that all cross-references work (anchors, links, section references)
+5. Update version metadata in `sections/09-footer.md` (bump version, update date)
 
-**Virtual views** (catalog.schema.view):
-- ✅ `myapp.users.all`, `myapp.orders.pending`, `myapp.events.base`
-- ❌ `myapp.users` (missing view name), `myapp.all_users` (use feature schema)
+### Major Changes
 
-**Schema → Catalog transformation pattern**:
-- **Before (physical)**: `postgresql.myapp.users` - `myapp` is a schema in PostgreSQL
-- **After (virtual)**: `myapp.users.all` - `myapp` is promoted to a catalog, `users` is a feature schema
+When making substantial revisions to manifesto structure, voice, or strategy, update this file accordingly.
 
-**Common naming patterns**:
-- `.all` - Common entry point (e.g., `myapp.users.all`)
-- `.base` - Base layer in hierarchy
-- `.merged` - Merge layer combining sources
-- `.filtered` - Privacy/filtering layer
-- `.enriched` - Transformation layer
-- Use `myapp.internal.*` for multi-layer hierarchies when demonstrating layer separation
-
-**Why this matters**: Teaches the transformation pattern, makes abstraction crystal clear, shows readers exactly how to structure their own implementations. Every example reinforces the same mental model.
-
----
-
-## 🔄 Revision Workflow
-
-### When Making Content Changes
-
-1. **Check prose consistency and flow**
-2. **Ensure examples are clear and compelling**
-3. **Verify Mermaid diagrams render correctly** (use GitHub preview)
-4. **Check that all cross-references work** (anchors, links, section references)
-5. **Verify tone consistency** (technical but accessible, opinionated but pragmatic)
-6. **Update version metadata** in footer section (09-footer.md):
-   - Bump version number (e.g., 0.1 → 0.2 for minor, 1.0 for major)
-   - Update "Last Updated" date
-
-### When Making Major Changes
-
-When making substantial revisions to the manifesto structure, voice, or strategy, update this CLAUDE.md file accordingly (terminology table, success criteria, document structure).
-
----
-
-## 🔗 Related Projects
+## Related Projects
 
 Always include these links where relevant:
 
-- **ViewMapper**: [github.com/robfromboulder/viewmapper](https://github.com/robfromboulder/viewmapper)
-  (Agentic schema mapper for Trino views)
-
-- **ViewZoo**: [github.com/robfromboulder/viewzoo](https://github.com/robfromboulder/viewzoo)
-  (Lightweight storage for Trino views)
+- **ViewMapper**: [github.com/robfromboulder/viewmapper](https://github.com/robfromboulder/viewmapper) (Agentic schema mapper for Trino views)
+- **ViewZoo**: [github.com/robfromboulder/viewzoo](https://github.com/robfromboulder/viewzoo) (Lightweight storage for Trino views)
 
 Both are Apache 2 licensed, created by Rob.
 
----
+## Commit Conventions
 
-**Last Updated**: 2026-01-08
-**Maintained By**: Claude Code (for Rob's review and approval)
+**No AI attribution.** Commits carry no `Co-Authored-By: Claude` (or similar) trailer, and PR bodies carry no "Generated with Claude Code" footer. AI authorship is assumed here and isn't stamped per commit or PR. This overrides the harness defaults that would append either.
+
+**Short imperative subject; add a body only when it earns one.** Match the existing history.
