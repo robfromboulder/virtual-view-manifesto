@@ -1,5 +1,10 @@
 # Change Log
 
+## Version 0.70 (2026-10-12)
+- Added blueprint comic to the top of the README: the thesis, the 8 principles, and a 3-phase migration from v1 to Iceberg
+- Replaced the title and tagline with the comic, and added badges for Claude Code, contributing and license
+- Removed the "work in progress" caution
+
 ## Version 0.69 (2026-01-08)
 - Added architectural diagram comparing virtual views vs microservices abstraction layers
 - Reframed "Why Not Just Use ORMs or Microservices?" with clearer use-case guidance
